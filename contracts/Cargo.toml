@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = [
+    "types",
+    "recovery_registry",
+    "add_associated_key",
+    "remove_associated_key",
+    "update_thresholds",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+casper-contract = "4.0"
+casper-types = { version = "4.0", default-features = false }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "z"

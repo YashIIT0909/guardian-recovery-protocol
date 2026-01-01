@@ -1,0 +1,25 @@
+# Build artifacts
+target/
+
+# WASM output (can be regenerated)
+wasm/
+
+# Cargo lock (optional - some projects include it)
+# Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug files
+*.pdb
+
+# Rust specific
+**/*.rs.bk
