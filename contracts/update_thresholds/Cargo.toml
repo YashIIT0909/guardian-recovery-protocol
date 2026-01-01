@@ -1,0 +1,20 @@
+[package]
+name = "update_thresholds"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+casper-contract = { workspace = true }
+casper-types = { workspace = true }
+
+[lib]
+name = "update_thresholds"
+path = "src/lib.rs"
+
+[[bin]]
+name = "update_thresholds"
+path = "src/main.rs"
+bench = false
+doctest = false
+test = false
