@@ -173,7 +173,7 @@ export default function DashboardPage() {
             <nav className="relative z-10 border-b border-border/30 px-6 md:px-28 py-6">
                 <div className="flex items-center justify-between">
                     <a href="/" className="font-[var(--font-bebas)] text-2xl tracking-tight hover:text-accent transition-colors">
-                        GUARDIAN
+                        SENTINELX
                     </a>
                     <div className="flex items-center gap-6">
                         <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
@@ -194,13 +194,13 @@ export default function DashboardPage() {
                 <div className="max-w-4xl">
                     {/* Header */}
                     <div className="mb-16">
-                        <span className="font-mono text-xs uppercase tracking-[0.3em] text-accent">Guardian Dashboard</span>
+                        <span className="font-mono text-xs uppercase tracking-[0.3em] text-accent">Protector Dashboard</span>
                         <h1 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">
-                            APPROVE RECOVERY
+                            APPROVALS
                         </h1>
                         <p className="mt-6 max-w-2xl font-mono text-sm text-muted-foreground leading-relaxed">
-                            As a guardian, you can approve recovery requests here. Each approval adds to the threshold.
-                            When enough guardians approve, the recovery can be finalized.
+                            As a protector, you can approve recovery requests here. Each approval adds to the threshold.
+                            When enough protectors approve, the recovery can be finalized.
                         </p>
                     </div>
 
@@ -211,7 +211,7 @@ export default function DashboardPage() {
                             <div className="flex items-center justify-between mb-6">
                                 <div>
                                     <h3 className="font-mono text-xs uppercase tracking-widest text-foreground mb-2">
-                                        Guardian Wallet
+                                        Protector Wallet
                                     </h3>
                                     {isConnected ? (
                                         <div>
@@ -349,7 +349,7 @@ export default function DashboardPage() {
                         {/* Info Panel */}
                         <div className="border border-accent/30 bg-accent/5 p-6 md:p-8">
                             <h3 className="font-mono text-xs uppercase tracking-widest text-accent mb-4">
-                                Guardian Responsibilities
+                                Protector Responsibilities
                             </h3>
                             <ul className="space-y-3">
                                 <li className="font-mono text-sm text-foreground/80 flex items-start gap-3">
@@ -391,7 +391,7 @@ export default function DashboardPage() {
                                 </li>
                                 <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
                                     <span className="text-accent">•</span>
-                                    <span>Each guardian approval adds weight toward the threshold</span>
+                                    <span>Each protector approval adds weight toward the threshold</span>
                                 </li>
                             </ul>
                         </div>
@@ -403,7 +403,7 @@ export default function DashboardPage() {
             <div className="relative z-10 px-6 md:px-28 py-8 border-t border-border/30">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                        Guardian Recovery Protocol v0.1
+                        SentinelX v0.1
                     </div>
                     <div className="flex items-center gap-6">
                         <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">

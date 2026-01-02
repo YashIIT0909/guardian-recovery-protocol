@@ -1,4 +1,4 @@
-// Guardian Recovery Protocol - API Client
+// SentinelX - API Client
 // Communicates with the backend server
 
 import axios, { AxiosInstance } from 'axios';
@@ -59,7 +59,7 @@ export interface SignatureCheckResult {
 // ==================== RECOVERY ENDPOINTS ====================
 
 /**
- * Register guardians for an account (Phase 1 - Setup)
+ * Register protectors for an account (Phase 1 - Setup)
  * Creates an unsigned deploy that needs to be signed with the user's PRIMARY key
  */
 export const registerGuardians = async (
@@ -81,7 +81,7 @@ export const registerGuardians = async (
 
 /**
  * Initiate recovery request (Phase 2 - Recovery Step 1)
- * Anyone (usually a guardian) can initiate a recovery proposal
+ * Anyone (usually a protector) can initiate a recovery proposal
  */
 export const initiateRecovery = async (
     initiatorPublicKey: string,
@@ -102,7 +102,7 @@ export const initiateRecovery = async (
 
 /**
  * Approve recovery request (Phase 2 - Recovery Step 2)
- * Each guardian independently approves the recovery
+ * Each protector independently approves the recovery
  */
 export const approveRecovery = async (
     guardianPublicKey: string,
@@ -156,7 +156,7 @@ export const finalizeRecovery = async (
 };
 
 /**
- * Check if account has guardians
+ * Check if account has protectors
  */
 export const hasGuardians = async (
     signerPublicKey: string,
@@ -177,7 +177,7 @@ export const hasGuardians = async (
 
 /**
  * Build add_associated_key deploy (Recovery Step 4)
- * Guardians jointly execute this to add the new key
+ * Protectors jointly execute this to add the new key
  */
 export const buildAddKeyDeploy = async (
     signerPublicKey: string,
@@ -198,7 +198,7 @@ export const buildAddKeyDeploy = async (
 
 /**
  * Build remove_associated_key deploy (Recovery Step 5)
- * Guardians remove the lost key
+ * Protectors remove the lost key
  */
 export const buildRemoveKeyDeploy = async (
     signerPublicKey: string,

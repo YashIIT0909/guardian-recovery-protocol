@@ -35,7 +35,7 @@ const PORT = config.port;
 app.listen(PORT, () => {
     console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
-║     Guardian Recovery Protocol - Backend Server               ║
+║                 SentinelX - Backend Server                    ║
 ╠═══════════════════════════════════════════════════════════════╣
 ║  Server running on http://localhost:${PORT}                   ║
 ║  Environment: ${config.nodeEnv.padEnd(46)}                    ║

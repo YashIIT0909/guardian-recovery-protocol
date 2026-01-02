@@ -1,4 +1,4 @@
-//! Constants for Guardian Recovery Protocol.
+//! Constants for SentinelX.
 
 /// Minimum required guardians for an account
 pub const MIN_GUARDIANS: usize = 2;

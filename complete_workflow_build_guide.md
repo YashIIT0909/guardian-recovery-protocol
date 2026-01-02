@@ -48,14 +48,14 @@
 
 ```
 Alice: Opens your dApp website
-Your Website: Shows "Welcome to Guardian Recovery"
+Your Website: Shows "Welcome to SentinelX"
 Your Website: Displays "Connect Wallet" button
 ```
 
 ### What Alice Sees
 ```
 ┌─────────────────────────────────┐
-│   Guardian Recovery Protocol    │
+│        SentinelX                │
 │                                 │
 │  [Connect Wallet] Button        │
 │                                 │

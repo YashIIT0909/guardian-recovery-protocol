@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { ScrambleTextOnHover } from "@/components/scramble-text"
-import { SplitFlapText, SplitFlapMuteToggle, SplitFlapAudioProvider } from "@/components/split-flap-text"
+import { SplitFlapText } from "@/components/split-flap-text"
 import { AnimatedNoise } from "@/components/animated-noise"
 import { BitmapChevron } from "@/components/bitmap-chevron"
 import gsap from "gsap"
@@ -46,21 +46,16 @@ export function HeroSection() {
 
       {/* Main content */}
       <div ref={contentRef} className="flex-1 w-full">
-        <SplitFlapAudioProvider>
-          <div className="relative">
-            <SplitFlapText text="GUARDIAN" speed={80} />
-            <div className="mt-4">
-              <SplitFlapMuteToggle />
-            </div>
-          </div>
-        </SplitFlapAudioProvider>
+        <div className="relative">
+          <SplitFlapText text="SENTINELX" speed={80} />
+        </div>
 
         <h2 className="font-[var(--font-bebas)] text-muted-foreground/60 text-[clamp(1rem,3vw,2rem)] mt-4 tracking-wide">
           Recovery Protocol for Casper Network
         </h2>
 
         <p className="mt-12 max-w-md font-mono text-sm text-muted-foreground leading-relaxed">
-          Setup recovery with trusted guardians for your account. Secure key management through distributed trust.
+          Setup recovery with trusted protectors for your account. Secure key management through distributed trust.
         </p>
 
         <div className="mt-16 flex items-center gap-8">
@@ -68,7 +63,7 @@ export function HeroSection() {
             href="/setup"
             className="group inline-flex items-center gap-3 border border-foreground/20 px-6 py-3 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200"
           >
-            <ScrambleTextOnHover text="Setup Guardians" as="span" duration={0.6} />
+            <ScrambleTextOnHover text="Setup Protectors" as="span" duration={0.6} />
             <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />
           </a>
           <a

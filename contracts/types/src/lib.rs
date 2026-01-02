@@ -1,4 +1,4 @@
-//! Guardian Recovery Protocol - Shared Types (Simplified)
+//! SentinelX - Shared Types (Simplified)
 //!
 //! Minimal shared types for the recovery_registry contract.
 //! Session WASMs don't need this library - they're self-contained.

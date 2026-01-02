@@ -15,6 +15,7 @@ import {
   getProvider
 } from "@/lib/casper-wallet"
 import { registerGuardians, submitDeploy, getDeployStatus } from "@/lib/api"
+import { isValidCasperAddress, getAddressValidationError } from "@/lib/validation"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
 
@@ -24,13 +25,14 @@ export default function SetupPage() {
   const sectionRef = useRef<HTMLElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
   const [guardians, setGuardians] = useState(["", ""])
+  const [guardianErrors, setGuardianErrors] = useState<(string | null)[]>(["", ""])
   const [isConnected, setIsConnected] = useState(false)
   const [account, setAccount] = useState("")
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
   const minGuardians = 2
 
-  // Guardian registration state
+  // Protector registration state
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -106,16 +108,28 @@ export default function SetupPage() {
     const newGuardians = [...guardians]
     newGuardians[index] = value
     setGuardians(newGuardians)
+    
+    // Validate on change
+    const newErrors = [...guardianErrors]
+    if (value.trim()) {
+      newErrors[index] = getAddressValidationError(value)
+    } else {
+      newErrors[index] = null
+    }
+    setGuardianErrors(newErrors)
   }
 
   const handleAddGuardian = () => {
     setGuardians([...guardians, ""])
+    setGuardianErrors([...guardianErrors, null])
   }
 
   const handleRemoveGuardian = (index: number) => {
     if (guardians.length > minGuardians) {
       const newGuardians = guardians.filter((_, i) => i !== index)
       setGuardians(newGuardians)
+      const newErrors = guardianErrors.filter((_, i) => i !== index)
+      setGuardianErrors(newErrors)
     }
   }
 
@@ -165,7 +179,14 @@ export default function SetupPage() {
     // Validate guardians
     const validGuardians = guardians.filter(g => g.trim())
     if (validGuardians.length < minGuardians) {
-      setSaveError(`At least ${minGuardians} guardians are required`)
+      setSaveError(`At least ${minGuardians} protectors are required`)
+      return
+    }
+    
+    // Check all guardians are valid addresses
+    const invalidGuardians = validGuardians.filter(g => !isValidCasperAddress(g))
+    if (invalidGuardians.length > 0) {
+      setSaveError(`Invalid protector addresses. Please check all entries.`)
       return
     }
 
@@ -227,8 +248,8 @@ export default function SetupPage() {
       {/* Navigation */}
       <nav className="relative z-10 border-b border-border/30 px-6 md:px-28 py-6">
         <div className="flex items-center justify-between">
-          <a href="/" className="font-[(--font-bebas)] text-2xl tracking-tight hover:text-accent transition-colors">
-            GUARDIAN
+          <a href="/" className="font-[var(--font-bebas)] text-2xl tracking-tight hover:text-accent transition-colors">
+            SENTINELX
           </a>
           <div className="flex items-center gap-6">
             <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
@@ -254,8 +275,8 @@ export default function SetupPage() {
               SETUP GUARDIANS
             </h1>
             <p className="mt-6 max-w-2xl font-mono text-sm text-muted-foreground leading-relaxed">
-              Enter guardian public keys (minimum 2). You will sign this transaction with your PRIMARY key (weight 3).
-              Guardians will be stored on-chain.
+              Enter protector public keys (minimum 2). You will sign this transaction with your PRIMARY key (weight 3).
+              Protectors will be stored on-chain.
             </p>
           </div>
 
@@ -319,27 +340,27 @@ export default function SetupPage() {
                       Status
                     </span>
                     <span className="font-mono text-xs text-foreground/80">
-                      Ready to setup guardians
+                      Ready to setup protectors
                     </span>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Guardian Form */}
+            {/* Protector Form */}
             {isConnected && (
               <div className="border border-border/30 p-6 md:p-8">
                 <h3 className="font-mono text-xs uppercase tracking-widest text-foreground mb-8">
-                  Guardian Configuration
+                  Protector Configuration
                 </h3>
 
                 <div className="space-y-6">
-                  {/* Guardian Inputs */}
+                  {/* Protector Inputs */}
                   {guardians.map((guardian, index) => (
                     <div key={index} className="space-y-2">
                       <div className="flex items-center justify-between">
                         <label className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                          Guardian {index + 1} Public Key
+                          Protector {index + 1} Public Key
                         </label>
                         {guardians.length > minGuardians && (
                           <button
@@ -354,23 +375,30 @@ export default function SetupPage() {
                         type="text"
                         value={guardian}
                         onChange={(e) => handleGuardianChange(index, e.target.value)}
-                        placeholder="Enter guardian public key..."
-                        className="w-full bg-transparent border border-border/30 px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:outline-none transition-colors"
+                        placeholder="Enter protector public key..."
+                        className={`w-full bg-transparent border px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:outline-none transition-colors ${
+                          guardianErrors[index] ? "border-red-500/50" : "border-border/30"
+                        }`}
                       />
+                      {guardianErrors[index] && (
+                        <p className="font-mono text-xs text-red-500 mt-1">
+                          {guardianErrors[index]}
+                        </p>
+                      )}
                     </div>
                   ))}
 
-                  {/* Add Guardian Button */}
+                  {/* Add Protector Button */}
                   <div className="pt-2">
                     <button
                       onClick={handleAddGuardian}
                       className="inline-flex items-center gap-3 border border-border/30 px-6 py-3 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200"
                     >
                       <span className="text-accent">+</span>
-                      Add Guardian
+                      Add Protector
                     </button>
                     <p className="mt-4 font-mono text-xs text-muted-foreground leading-relaxed">
-                      All guardians must approve for recovery (threshold = {guardians.length})
+                      All protectors must approve for recovery (threshold = {guardians.length})
                     </p>
                   </div>
                 </div>
@@ -390,7 +418,7 @@ export default function SetupPage() {
                   {saveSuccess && deployHash && (
                     <div className="mb-6 p-4 border border-green-500/30 bg-green-500/5">
                       <p className="font-mono text-xs text-green-500 mb-2">
-                        ✓ Guardians registered successfully!
+                        ✓ Protectors registered successfully!
                       </p>
                       <p className="font-mono text-[10px] text-muted-foreground break-all">
                         Deploy Hash: {deployHash}
@@ -412,11 +440,11 @@ export default function SetupPage() {
 
                   <button
                     onClick={handleSaveGuardians}
-                    disabled={guardians.some((g) => !g.trim()) || isSaving || saveSuccess}
+                    disabled={guardians.some((g) => !g.trim()) || isSaving || saveSuccess || guardianErrors.some((e) => e !== null)}
                     className="group inline-flex items-center gap-3 border border-foreground/20 px-8 py-4 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-foreground/20 disabled:hover:text-foreground"
                   >
                     <ScrambleTextOnHover
-                      text={isSaving ? "Signing..." : saveSuccess ? "Saved ✓" : "Save Guardians"}
+                      text={isSaving ? "Signing..." : saveSuccess ? "Saved ✓" : "Save Protectors"}
                       as="span"
                       duration={0.6}
                     />
@@ -467,7 +495,7 @@ export default function SetupPage() {
       <div className="relative z-10 px-6 md:px-28 py-8 border-t border-border/30">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
-            Guardian Recovery Protocol v0.1
+            SentinelX v0.1
           </div>
           <div className="flex items-center gap-6">
             <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">

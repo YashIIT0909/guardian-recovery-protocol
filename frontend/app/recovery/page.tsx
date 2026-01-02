@@ -15,6 +15,7 @@ import {
   getProvider
 } from "@/lib/casper-wallet"
 import { initiateRecovery, submitDeploy, getDeployStatus } from "@/lib/api"
+import { isValidCasperAddress, getAddressValidationError } from "@/lib/validation"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
 
@@ -24,7 +25,9 @@ export default function RecoveryPage() {
   const sectionRef = useRef<HTMLElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
   const [accountAddress, setAccountAddress] = useState("")
+  const [accountAddressError, setAccountAddressError] = useState<string | null>(null)
   const [newPublicKey, setNewPublicKey] = useState("")
+  const [newPublicKeyError, setNewPublicKeyError] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [guardianKey, setGuardianKey] = useState("")
   const [isConnecting, setIsConnecting] = useState(false)
@@ -143,6 +146,17 @@ export default function RecoveryPage() {
       setSubmitError("Please fill in all fields")
       return
     }
+    
+    // Validate addresses before submitting
+    if (!isValidCasperAddress(accountAddress.trim())) {
+      setSubmitError("Invalid account address format")
+      return
+    }
+    
+    if (!isValidCasperAddress(newPublicKey.trim())) {
+      setSubmitError("Invalid new public key format")
+      return
+    }
 
     setIsSubmitting(true)
     setSubmitError(null)
@@ -206,7 +220,7 @@ export default function RecoveryPage() {
       <nav className="relative z-10 border-b border-border/30 px-6 md:px-28 py-6">
         <div className="flex items-center justify-between">
           <a href="/" className="font-[var(--font-bebas)] text-2xl tracking-tight hover:text-accent transition-colors">
-            GUARDIAN
+            SENTINELX
           </a>
           <div className="flex items-center gap-6">
             <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
@@ -232,19 +246,19 @@ export default function RecoveryPage() {
               I LOST MY KEY
             </h1>
             <p className="mt-6 max-w-2xl font-mono text-sm text-muted-foreground leading-relaxed">
-              Initiate recovery for your account. You will sign with a GUARDIAN key (weight 1) borrowed from a friend.
-              Recovery requires all 3 guardian approvals and a 30-day waiting period.
+              Initiate recovery for your account. You will sign with a PROTECTOR key (weight 1) borrowed from a friend.
+              Recovery requires all 3 protector approvals and a 30-day waiting period.
             </p>
           </div>
 
           {/* Form */}
           <div ref={formRef} className="space-y-12">
-            {/* Guardian Key Connection */}
+            {/* Protector Key Connection */}
             <div className="border border-border/30 p-6 md:p-8">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="font-mono text-xs uppercase tracking-widest text-foreground mb-2">
-                    Guardian Key
+                    Protector Key
                   </h3>
                   {isConnected ? (
                     <div>
@@ -275,7 +289,7 @@ export default function RecoveryPage() {
                       disabled={isConnecting}
                       className="group inline-flex items-center gap-3 border border-foreground/20 px-6 py-3 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <ScrambleTextOnHover text={isConnecting ? "Connecting..." : "Connect Guardian Key"} as="span" duration={0.6} />
+                      <ScrambleTextOnHover text={isConnecting ? "Connecting..." : "Connect Protector Key"} as="span" duration={0.6} />
                       {!isConnecting && <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />}
                     </button>
                   )}
@@ -294,7 +308,7 @@ export default function RecoveryPage() {
               {!isConnected && (
                 <div className="pt-6 border-t border-border/30">
                   <p className="font-mono text-xs text-muted-foreground leading-relaxed">
-                    ⚠ You need to import a guardian key from one of your friends into Casper Wallet before starting recovery.
+                    ⚠ You need to import a protector key from one of your friends into Casper Wallet before starting recovery.
                   </p>
                 </div>
               )}
@@ -329,10 +343,24 @@ export default function RecoveryPage() {
                     <input
                       type="text"
                       value={accountAddress}
-                      onChange={(e) => setAccountAddress(e.target.value)}
+                      onChange={(e) => {
+                        setAccountAddress(e.target.value)
+                        if (e.target.value.trim()) {
+                          setAccountAddressError(getAddressValidationError(e.target.value))
+                        } else {
+                          setAccountAddressError(null)
+                        }
+                      }}
                       placeholder="Enter your account address..."
-                      className="w-full bg-transparent border border-border/30 px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:outline-none transition-colors"
+                      className={`w-full bg-transparent border px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:outline-none transition-colors ${
+                        accountAddressError ? "border-red-500/50" : "border-border/30"
+                      }`}
                     />
+                    {accountAddressError && (
+                      <p className="font-mono text-xs text-red-500">
+                        {accountAddressError}
+                      </p>
+                    )}
                     <p className="font-mono text-xs text-muted-foreground leading-relaxed">
                       The account you lost access to
                     </p>
@@ -346,10 +374,24 @@ export default function RecoveryPage() {
                     <input
                       type="text"
                       value={newPublicKey}
-                      onChange={(e) => setNewPublicKey(e.target.value)}
+                      onChange={(e) => {
+                        setNewPublicKey(e.target.value)
+                        if (e.target.value.trim()) {
+                          setNewPublicKeyError(getAddressValidationError(e.target.value))
+                        } else {
+                          setNewPublicKeyError(null)
+                        }
+                      }}
                       placeholder="Enter your new public key..."
-                      className="w-full bg-transparent border border-border/30 px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:outline-none transition-colors"
+                      className={`w-full bg-transparent border px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:outline-none transition-colors ${
+                        newPublicKeyError ? "border-red-500/50" : "border-border/30"
+                      }`}
                     />
+                    {newPublicKeyError && (
+                      <p className="font-mono text-xs text-red-500">
+                        {newPublicKeyError}
+                      </p>
+                    )}
                     <p className="font-mono text-xs text-muted-foreground leading-relaxed">
                       The new key that will replace your lost primary key
                     </p>
@@ -369,7 +411,7 @@ export default function RecoveryPage() {
 
                   <button
                     onClick={handleStartRecovery}
-                    disabled={!accountAddress.trim() || !newPublicKey.trim() || isSubmitting}
+                    disabled={!accountAddress.trim() || !newPublicKey.trim() || isSubmitting || !!accountAddressError || !!newPublicKeyError}
                     className="group inline-flex items-center gap-3 border border-foreground/20 px-8 py-4 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-foreground/20 disabled:hover:text-foreground"
                   >
                     <ScrambleTextOnHover
@@ -426,7 +468,7 @@ export default function RecoveryPage() {
                   <div className="pt-4 border-t border-accent/30">
                     <p className="font-mono text-sm text-foreground/80">
                       {recoveryStatus === "confirmed"
-                        ? "Recovery proposal is now on-chain. Guardians can start approving."
+                        ? "Recovery proposal is now on-chain. Protectors can start approving."
                         : "Waiting for network confirmation..."}
                     </p>
                   </div>
@@ -442,7 +484,7 @@ export default function RecoveryPage() {
               <ul className="space-y-3">
                 <li className="font-mono text-sm text-foreground/80 flex items-start gap-3">
                   <span className="text-accent">01</span>
-                  <span>Alice signs recovery request with GUARDIAN key (weight 1)</span>
+                  <span>Alice signs recovery request with PROTECTOR key (weight 1)</span>
                 </li>
                 <li className="font-mono text-sm text-foreground/80 flex items-start gap-3">
                   <span className="text-accent">02</span>
@@ -475,15 +517,15 @@ export default function RecoveryPage() {
               <ul className="space-y-3">
                 <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
                   <span className="text-accent">•</span>
-                  <span>You must borrow a guardian key from one of your friends to sign this request</span>
+                  <span>You must borrow a protector key from one of your friends to sign this request</span>
                 </li>
                 <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
                   <span className="text-accent">•</span>
-                  <span>Guardian key has weight 1 - not enough alone, proves you have guardian access</span>
+                  <span>Protector key has weight 1 - not enough alone, proves you have protector access</span>
                 </li>
                 <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
                   <span className="text-accent">•</span>
-                  <span>All 3 guardians must approve for recovery to proceed</span>
+                  <span>All 3 protectors must approve for recovery to proceed</span>
                 </li>
                 <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
                   <span className="text-accent">•</span>
@@ -499,7 +541,7 @@ export default function RecoveryPage() {
       <div className="relative z-10 px-6 md:px-28 py-8 border-t border-border/30">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
-            Guardian Recovery Protocol v0.1
+            SentinelX v0.1
           </div>
           <div className="flex items-center gap-6">
             <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">

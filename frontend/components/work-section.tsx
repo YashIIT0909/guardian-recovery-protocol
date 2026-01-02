@@ -9,9 +9,9 @@ gsap.registerPlugin(ScrollTrigger)
 
 const experiments = [
   {
-    title: "Guardian Setup",
+    title: "Protector Setup",
     medium: "Phase 1 - Setup",
-    description: "Connect wallet and set 3 guardian public keys. Sign with PRIMARY key (weight 3).",
+    description: "Connect wallet and set 3 protector public keys. Sign with PRIMARY key (weight 3).",
     span: "col-span-2 row-span-2",
   },
   {
@@ -23,13 +23,13 @@ const experiments = [
   {
     title: "Recovery Request",
     medium: "Phase 2 - Initiate",
-    description: "Alice signs with GUARDIAN key. Creates recovery request and starts 30-day timer.",
+    description: "Alice signs with PROTECTOR key. Creates recovery request and starts 30-day timer.",
     span: "col-span-1 row-span-2",
   },
   {
     title: "Friend Approvals",
     medium: "Phase 2 - Approve",
-    description: "Each guardian signs with their key (weight 1). Need 3 signatures to reach threshold.",
+    description: "Each protector signs with their key (weight 1). Need 3 signatures to reach threshold.",
     span: "col-span-1 row-span-1",
   },
   {
@@ -41,7 +41,7 @@ const experiments = [
   {
     title: "Smart Contract",
     medium: "Casper Network",
-    description: "On-chain guardian registry, approval tracking, and automated key rotation.",
+    description: "On-chain protector registry, approval tracking, and automated key rotation.",
     span: "col-span-1 row-span-1",
   },
 ]

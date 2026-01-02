@@ -1,4 +1,4 @@
-# Guardian Recovery Protocol - Smart Contracts
+# SentinelX - Smart Contracts
 
 Casper-native smart contracts and session WASMs for threshold-based account recovery.
 

@@ -10,18 +10,18 @@ gsap.registerPlugin(ScrollTrigger)
 const signals = [
   {
     date: "PHASE 1",
-    title: "Setup Guardians",
-    note: "Alice sets up 3 guardians. Signs with PRIMARY key (weight 3). Guardians stored on-chain.",
+    title: "Setup Protectors",
+    note: "Alice sets up 3 protectors. Signs with PRIMARY key (weight 3). Protectors stored on-chain.",
   },
   {
     date: "PHASE 2",
     title: "Initiate Recovery",
-    note: "Alice lost her key. Signs recovery request with GUARDIAN key (weight 1). 30-day timer starts.",
+    note: "Alice lost her key. Signs recovery request with PROTECTOR key (weight 1). 30-day timer starts.",
   },
   {
     date: "STEP 3",
-    title: "Guardian Approvals",
-    note: "Friends approve recovery. Each signs with GUARDIAN key (1+1+1=3). Threshold reached.",
+    title: "Protector Approvals",
+    note: "Friends approve recovery. Each signs with PROTECTOR key (1+1+1=3). Threshold reached.",
   },
   {
     date: "STEP 4",
@@ -31,7 +31,7 @@ const signals = [
   {
     date: "STATUS",
     title: "Key Rotation Complete",
-    note: "Alice can now use her account again with the new key. Guardian system remains active.",
+    note: "Alice can now use her account again with the new key. Protector system remains active.",
   },
 ]
 

@@ -19,7 +19,7 @@ export function PrinciplesSection() {
         { text: "DISTRIBUTED", highlight: true },
         { text: " TRUST", highlight: false },
       ],
-      description: "No single point of failure. Recovery requires 3 guardian signatures (weight 1 each = 3 total).",
+      description: "No single point of failure. Recovery requires 3 protector signatures (weight 1 each = 3 total).",
       align: "left",
     },
     {

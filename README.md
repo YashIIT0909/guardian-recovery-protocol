@@ -1,4 +1,4 @@
-# Guardian Recovery Protocol
+# SentinelX
 
 **Your Keys. Your Friends. Your Recovery.**
 
@@ -6,7 +6,7 @@ Decentralized account recovery through threshold-based guardianship on Casper Ne
 
 ## Overview
 
-Guardian Recovery Protocol is an open-source, decentralized account recovery system that enables users to regain access to lost or stolen private keys through a network of trusted guardians. It combines threshold-based multi-signature cryptography with a 30-day safety period to ensure both security and recoverability.
+SentinelX is an open-source, decentralized account recovery system that enables users to regain access to lost or stolen private keys through a network of trusted guardians. It combines threshold-based multi-signature cryptography with a 30-day safety period to ensure both security and recoverability.
 
 Built on Casper Network's native multi-signature infrastructure.
 
@@ -18,7 +18,7 @@ Built on Casper Network's native multi-signature infrastructure.
 - Use a password recovery → Weak against sophisticated attacks
 
 **Our Solution:**
-Guardian Recovery Protocol enables **decentralized, cryptographic account recovery** through friends, family, or trusted services you choose as guardians.
+SentinelX enables **decentralized, cryptographic account recovery** through friends, family, or trusted services you choose as guardians.
 
 ## Key Features
 
@@ -121,7 +121,7 @@ Guardian Recovery Protocol enables **decentralized, cryptographic account recove
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Why Guardian Recovery Protocol is Secure
+## Why SentinelX is Secure
 
 ### Layer 1: Database Isolation
 Each account's guardians are stored separately in smart contract storage. Alice's guardians cannot be used for Bob's account recovery because they're in different storage locations.
@@ -235,7 +235,7 @@ New Setup:
 
 ### Recovery Initiation (Day 101)
 
-**Alice opens Guardian Recovery Protocol dApp**
+**Alice opens SentinelX dApp**
 
 ```
 Form:
@@ -436,7 +436,7 @@ Alice Can Now:
 
 ### Steps to Recover
 
-1. **Visit the dApp** - Go to the Guardian Recovery Protocol website
+1. **Visit the dApp** - Go to the SentinelX website
 2. **Enter Account Hash** - Paste your lost account's hash
 3. **Enter New Key** - Paste your new public key from new computer
 4. **Connect Wallet** - Connect Casper Wallet with guardian key
@@ -451,8 +451,8 @@ Alice Can Now:
 
 ### Clone Repository
 ```bash
-git clone https://github.com/guardian-labs/guardian-recovery-protocol.git
-cd guardian-recovery-protocol
+git clone https://github.com/guardian-labs/sentinelx.git
+cd sentinelx
 ```
 
 ### Smart Contracts (Rust)
@@ -530,10 +530,10 @@ npm test                      # Frontend tests
 
 ## Disclaimer
 
-Guardian Recovery Protocol is provided as-is for educational and experimental purposes. Users assume all risks associated with key recovery. Always backup your keys and test recovery flows in non-critical scenarios before relying on them for account access.
+SentinelX is provided as-is for educational and experimental purposes. Users assume all risks associated with key recovery. Always backup your keys and test recovery flows in non-critical scenarios before relying on them for account access.
 
 ---
 
-**Guardian Recovery Protocol: Your Keys. Your Friends. Your Recovery.** 🔐
+**SentinelX: Your Keys. Your Friends. Your Recovery.** 🔐
 
 Built with ❤️ for the Casper ecosystem.

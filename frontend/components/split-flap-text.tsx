@@ -2,122 +2,7 @@
 
 import type React from "react"
 import { motion } from "framer-motion"
-import { useMemo, useState, useCallback, useEffect, useRef, createContext, useContext } from "react"
-import { Volume2, VolumeX } from "lucide-react"
-
-interface AudioContextType {
-  isMuted: boolean
-  toggleMute: () => void
-  playClick: () => void
-}
-
-const SplitFlapAudioContext = createContext<AudioContextType | null>(null)
-
-function useSplitFlapAudio() {
-  return useContext(SplitFlapAudioContext)
-}
-
-export function SplitFlapAudioProvider({ children }: { children: React.ReactNode }) {
-  const [isMuted, setIsMuted] = useState(true)
-  const audioContextRef = useRef<AudioContext | null>(null)
-
-  const getAudioContext = useCallback(() => {
-    if (typeof window === "undefined") return null
-    if (!audioContextRef.current) {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
-      if (AudioContextClass) {
-        audioContextRef.current = new AudioContextClass()
-      }
-    }
-    return audioContextRef.current
-  }, [])
-
-  const triggerHaptic = useCallback(() => {
-    if (isMuted) return
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      navigator.vibrate(10)
-    }
-  }, [isMuted])
-
-  const playClick = useCallback(() => {
-    if (isMuted) return
-
-    triggerHaptic()
-
-    try {
-      const ctx = getAudioContext()
-      if (!ctx) return
-
-      if (ctx.state === "suspended") {
-        ctx.resume()
-      }
-
-      const oscillator = ctx.createOscillator()
-      const gainNode = ctx.createGain()
-      const filter = ctx.createBiquadFilter()
-      const lowpass = ctx.createBiquadFilter()
-
-      oscillator.type = "square"
-      oscillator.frequency.setValueAtTime(800 + Math.random() * 400, ctx.currentTime)
-      oscillator.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.015)
-
-      filter.type = "bandpass"
-      filter.frequency.setValueAtTime(1200, ctx.currentTime)
-      filter.Q.setValueAtTime(0.8, ctx.currentTime)
-
-      lowpass.type = "lowpass"
-      lowpass.frequency.value = 2500
-      lowpass.Q.value = 0.5
-
-      gainNode.gain.setValueAtTime(0.05, ctx.currentTime)
-      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.02)
-
-      oscillator.connect(filter)
-      filter.connect(gainNode)
-      gainNode.connect(lowpass)
-      lowpass.connect(ctx.destination)
-
-      oscillator.start(ctx.currentTime)
-      oscillator.stop(ctx.currentTime + 0.02)
-    } catch {
-      // Audio not supported
-    }
-  }, [isMuted, getAudioContext, triggerHaptic])
-
-  const toggleMute = useCallback(() => {
-    setIsMuted((prev) => !prev)
-    if (isMuted) {
-      try {
-        const ctx = getAudioContext()
-        if (ctx && ctx.state === "suspended") {
-          ctx.resume()
-        }
-      } catch {
-        // Audio not supported
-      }
-    }
-  }, [isMuted, getAudioContext])
-
-  const value = useMemo(() => ({ isMuted, toggleMute, playClick }), [isMuted, toggleMute, playClick])
-
-  return <SplitFlapAudioContext.Provider value={value}>{children}</SplitFlapAudioContext.Provider>
-}
-
-export function SplitFlapMuteToggle({ className = "" }: { className?: string }) {
-  const audio = useSplitFlapAudio()
-  if (!audio) return null
-
-  return (
-    <button
-      onClick={audio.toggleMute}
-      className={`inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors duration-200 ${className}`}
-      aria-label={audio.isMuted ? "Unmute sound effects" : "Mute sound effects"}
-    >
-      {audio.isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-      <span>{audio.isMuted ? "Sound Off" : "Sound On"}</span>
-    </button>
-  )
-}
+import { useMemo, useState, useCallback, useEffect, useRef } from "react"
 
 interface SplitFlapTextProps {
   text: string
@@ -131,7 +16,6 @@ function SplitFlapTextInner({ text, className = "", speed = 50 }: SplitFlapTextP
   const chars = useMemo(() => text.split(""), [text])
   const [animationKey, setAnimationKey] = useState(0)
   const [hasInitialized, setHasInitialized] = useState(false)
-  const audio = useSplitFlapAudio()
 
   const handleMouseEnter = useCallback(() => {
     setAnimationKey((prev) => prev + 1)
@@ -159,7 +43,6 @@ function SplitFlapTextInner({ text, className = "", speed = 50 }: SplitFlapTextP
           animationKey={animationKey}
           skipEntrance={hasInitialized}
           speed={speed}
-          playClick={audio?.playClick}
         />
       ))}
     </div>
@@ -176,10 +59,9 @@ interface SplitFlapCharProps {
   animationKey: number
   skipEntrance: boolean
   speed: number
-  playClick?: () => void
 }
 
-function SplitFlapChar({ char, index, animationKey, skipEntrance, speed, playClick }: SplitFlapCharProps) {
+function SplitFlapChar({ char, index, animationKey, skipEntrance, speed }: SplitFlapCharProps) {
   const displayChar = CHARSET.includes(char) ? char : " "
   const isSpace = char === " "
   const [currentChar, setCurrentChar] = useState(skipEntrance ? displayChar : " ")
@@ -219,11 +101,9 @@ function SplitFlapChar({ char, index, animationKey, skipEntrance, speed, playCli
           if (intervalRef.current) clearInterval(intervalRef.current)
           setCurrentChar(displayChar)
           setIsSettled(true)
-          if (playClick) playClick()
           return
         }
         setCurrentChar(CHARSET[Math.floor(Math.random() * CHARSET.length)])
-        if (flipIndex % 2 === 0 && playClick) playClick()
         flipIndex++
       }, speed)
     }, startDelay)
@@ -232,7 +112,7 @@ function SplitFlapChar({ char, index, animationKey, skipEntrance, speed, playCli
       if (intervalRef.current) clearInterval(intervalRef.current)
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
-  }, [displayChar, isSpace, tileDelay, animationKey, skipEntrance, index, speed, playClick])
+  }, [displayChar, isSpace, tileDelay, animationKey, skipEntrance, index, speed])
 
   if (isSpace) {
     return (

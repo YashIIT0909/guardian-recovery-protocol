@@ -1,4 +1,4 @@
-# Guardian Recovery Protocol - Frontend Integration
+# SentinelX - Frontend Integration
 
 ## Recovery Flow Example
 

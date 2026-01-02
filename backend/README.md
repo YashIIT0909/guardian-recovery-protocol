@@ -1,6 +1,6 @@
-# Guardian Recovery Protocol - Backend
+# SentinelX - Backend
 
-Node.js/TypeScript backend for the Guardian Recovery Protocol on Casper Network.
+Node.js/TypeScript backend for SentinelX on Casper Network.
 
 ## Quick Start
 

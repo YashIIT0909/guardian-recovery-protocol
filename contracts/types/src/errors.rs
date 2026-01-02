@@ -1,4 +1,4 @@
-//! Error types for Guardian Recovery Protocol.
+//! Error types for SentinelX.
 
 use casper_types::ApiError;
 
