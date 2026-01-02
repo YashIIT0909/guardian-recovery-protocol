@@ -73,13 +73,13 @@ export default function SetupPage() {
             GUARDIAN
           </a>
           <div className="flex items-center gap-6">
-            <a href="/#how-it-works" className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
+            <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               How It Works
             </a>
-            <a href="/recovery" className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
+            <a href="/recovery" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               Recovery
             </a>
-            <a href="/dashboard" className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
+            <a href="/dashboard" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               Dashboard
             </a>
           </div>
@@ -91,7 +91,7 @@ export default function SetupPage() {
         <div className="max-w-4xl">
           {/* Header */}
           <div className="mb-16">
-            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">Phase 1 / Setup</span>
+            <span className="font-mono text-xs uppercase tracking-[0.3em] text-accent">Phase 1 / Setup</span>
             <h1 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">
               SETUP GUARDIANS
             </h1>
@@ -133,7 +133,7 @@ export default function SetupPage() {
               {isConnected && (
                 <div className="pt-6 border-t border-border/30">
                   <div className="grid grid-cols-1 gap-1 mb-2">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground">
+                    <span className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
                       Status
                     </span>
                     <span className="font-mono text-xs text-foreground/80">
@@ -156,13 +156,13 @@ export default function SetupPage() {
                   {guardians.map((guardian, index) => (
                     <div key={index} className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground">
+                        <label className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
                           Guardian {index + 1} Public Key
                         </label>
                         {guardians.length > minGuardians && (
                           <button
                             onClick={() => handleRemoveGuardian(index)}
-                            className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground hover:text-accent transition-colors"
+                            className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-accent transition-colors"
                           >
                             Remove
                           </button>
@@ -182,12 +182,12 @@ export default function SetupPage() {
                   <div className="pt-2">
                     <button
                       onClick={handleAddGuardian}
-                      className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground hover:text-accent transition-colors"
+                      className="inline-flex items-center gap-3 border border-border/30 px-6 py-3 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200"
                     >
                       <span className="text-accent">+</span>
                       Add Guardian
                     </button>
-                    <p className="mt-2 font-mono text-[10px] text-muted-foreground leading-relaxed">
+                    <p className="mt-4 font-mono text-xs text-muted-foreground leading-relaxed">
                       All guardians must approve for recovery (threshold = {guardians.length})
                     </p>
                   </div>
@@ -203,7 +203,7 @@ export default function SetupPage() {
                     <ScrambleTextOnHover text="Save Guardians" as="span" duration={0.6} />
                     <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />
                   </button>
-                  <p className="mt-4 font-mono text-[10px] text-muted-foreground leading-relaxed">
+                  <p className="mt-4 font-mono text-xs text-muted-foreground leading-relaxed">
                     Casper Wallet will pop up for signature
                   </p>
                 </div>
@@ -241,11 +241,11 @@ export default function SetupPage() {
       {/* Footer Info */}
       <div className="relative z-10 px-6 md:px-28 py-8 border-t border-border/30">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+          <div className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
             Guardian Recovery Protocol v0.1
           </div>
           <div className="flex items-center gap-6">
-            <a href="/#how-it-works" className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
+            <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               How It Works
             </a>
             <a href="/#key-features" className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">

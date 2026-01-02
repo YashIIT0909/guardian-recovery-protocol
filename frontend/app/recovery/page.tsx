@@ -56,13 +56,13 @@ export default function RecoveryPage() {
             GUARDIAN
           </a>
           <div className="flex items-center gap-6">
-            <a href="/#how-it-works" className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
+            <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               How It Works
             </a>
-            <a href="/setup" className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
+            <a href="/setup" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               Setup
             </a>
-            <a href="/dashboard" className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
+            <a href="/dashboard" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               Dashboard
             </a>
           </div>
@@ -74,7 +74,7 @@ export default function RecoveryPage() {
         <div className="max-w-4xl">
           {/* Header */}
           <div className="mb-16">
-            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">Phase 2 / Recovery</span>
+            <span className="font-mono text-xs uppercase tracking-[0.3em] text-accent">Phase 2 / Recovery</span>
             <h1 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">
               I LOST MY KEY
             </h1>
@@ -116,7 +116,7 @@ export default function RecoveryPage() {
 
               {!isConnected && (
                 <div className="pt-6 border-t border-border/30">
-                  <p className="font-mono text-[10px] text-muted-foreground leading-relaxed">
+                  <p className="font-mono text-xs text-muted-foreground leading-relaxed">
                     ⚠ You need to import a guardian key from one of your friends into Casper Wallet before starting recovery.
                   </p>
                 </div>
@@ -125,7 +125,7 @@ export default function RecoveryPage() {
               {isConnected && (
                 <div className="pt-6 border-t border-border/30">
                   <div className="grid grid-cols-1 gap-1 mb-2">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground">
+                    <span className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
                       Status
                     </span>
                     <span className="font-mono text-xs text-foreground/80">
@@ -146,7 +146,7 @@ export default function RecoveryPage() {
                 <div className="space-y-6">
                   {/* Account Address */}
                   <div className="space-y-2">
-                    <label className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground">
+                    <label className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
                       Your Account Address
                     </label>
                     <input
@@ -156,14 +156,14 @@ export default function RecoveryPage() {
                       placeholder="Enter your account address..."
                       className="w-full bg-transparent border border-border/30 px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:outline-none transition-colors"
                     />
-                    <p className="font-mono text-[10px] text-muted-foreground leading-relaxed">
+                    <p className="font-mono text-xs text-muted-foreground leading-relaxed">
                       The account you lost access to
                     </p>
                   </div>
 
                   {/* New Public Key */}
                   <div className="space-y-2">
-                    <label className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground">
+                    <label className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
                       New Recovery Key
                     </label>
                     <input
@@ -173,7 +173,7 @@ export default function RecoveryPage() {
                       placeholder="Enter your new public key..."
                       className="w-full bg-transparent border border-border/30 px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:outline-none transition-colors"
                     />
-                    <p className="font-mono text-[10px] text-muted-foreground leading-relaxed">
+                    <p className="font-mono text-xs text-muted-foreground leading-relaxed">
                       The new key that will replace your lost primary key
                     </p>
                   </div>
@@ -189,7 +189,7 @@ export default function RecoveryPage() {
                     <ScrambleTextOnHover text="Start Recovery" as="span" duration={0.6} />
                     <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />
                   </button>
-                  <p className="mt-4 font-mono text-[10px] text-muted-foreground leading-relaxed">
+                  <p className="mt-4 font-mono text-xs text-muted-foreground leading-relaxed">
                     Casper Wallet will pop up for signature
                   </p>
                 </div>
@@ -204,7 +204,7 @@ export default function RecoveryPage() {
                 </h3>
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 gap-1">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground">
+                    <span className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
                       Account
                     </span>
                     <span className="font-mono text-xs text-foreground/80 break-all">
@@ -212,7 +212,7 @@ export default function RecoveryPage() {
                     </span>
                   </div>
                   <div className="grid grid-cols-1 gap-1">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground">
+                    <span className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
                       New Key
                     </span>
                     <span className="font-mono text-xs text-foreground/80 break-all">
@@ -292,11 +292,11 @@ export default function RecoveryPage() {
       {/* Footer Info */}
       <div className="relative z-10 px-6 md:px-28 py-8 border-t border-border/30">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+          <div className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
             Guardian Recovery Protocol v0.1
           </div>
           <div className="flex items-center gap-6">
-            <a href="/#how-it-works" className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
+            <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               How It Works
             </a>
             <a href="/dashboard" className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
