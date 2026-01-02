@@ -32,4 +32,5 @@ copy-wasm:
 	cp target/$(WASM_TARGET)/release/add_associated_key.wasm wasm/
 	cp target/$(WASM_TARGET)/release/remove_associated_key.wasm wasm/
 	cp target/$(WASM_TARGET)/release/update_thresholds.wasm wasm/
+	cp target/$(WASM_TARGET)/release/update_associated_keys.wasm wasm/
 	@echo "WASM files copied to wasm/"

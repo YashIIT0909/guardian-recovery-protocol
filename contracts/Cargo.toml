@@ -6,6 +6,7 @@ members = [
     "add_associated_key",
     "remove_associated_key",
     "update_thresholds",
+    "update_associated_keys",
 ]
 
 [workspace.package]
