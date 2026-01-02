@@ -176,6 +176,22 @@ export class DeployService {
     }
 
     /**
+     * Submit deploy without waiting
+     */
+    async submit(deploy: DeployUtil.Deploy): Promise<{
+        deployHash: string;
+        success: boolean;
+        message: string;
+    }> {
+        const deployHash = await casperService.submitDeploy(deploy);
+        return {
+            deployHash,
+            success: true,
+            message: 'Deploy submitted successfully',
+        };
+    }
+
+    /**
      * Submit deploy and wait for result
      */
     async submitAndWait(deploy: DeployUtil.Deploy): Promise<{

@@ -10,7 +10,7 @@ export const config = {
 
     // Casper Network
     casper: {
-        nodeUrl: process.env.CASPER_NODE_URL || 'http://65.21.235.219:7777/rpc',
+        nodeUrl: process.env.CASPER_NODE_URL || 'http://65.109.83.79:7777/rpc',
         chainName: process.env.CASPER_CHAIN_NAME || 'casper-test',
     },
 

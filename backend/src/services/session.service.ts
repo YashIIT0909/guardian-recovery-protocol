@@ -100,7 +100,7 @@ export class SessionService {
     async submitSignedDeploy(deployJson: string): Promise<DeployResult> {
         try {
             const deploy = deployService.jsonToDeploy(deployJson);
-            const result = await deployService.submitAndWait(deploy);
+            const result = await deployService.submit(deploy);
             return result;
         } catch (error) {
             return {
