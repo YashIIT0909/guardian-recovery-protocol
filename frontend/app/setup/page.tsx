@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { AnimatedNoise } from "@/components/animated-noise"
 import { ScrambleTextOnHover } from "@/components/scramble-text"
 import { BitmapChevron } from "@/components/bitmap-chevron"
-import { DeployUtil } from "casper-js-sdk"
+import { DeployUtil, CLPublicKey } from "casper-js-sdk"
 import {
   connectWallet,
   disconnectWallet,
@@ -193,15 +193,46 @@ export default function SetupPage() {
       // Parse the deploy JSON
       const deployJson = registerResult.data.deployJson
 
-      // Sign the deploy using Casper Wallet
-      const signedDeploy = await provider.signDeploy(deployJson, account)
+      // Ensure deployJson is a string for the wallet
+      const deployString = typeof deployJson === 'string' ? deployJson : JSON.stringify(deployJson);
 
-      if (!signedDeploy) {
-        throw new Error("Failed to sign deploy")
+      // Sign the deploy using Casper Wallet
+      // Note: The method is 'sign' in the wallet provider, not 'signDeploy'
+      const response = await provider.sign(deployString, account)
+      console.log("Sign response:", response);
+
+      if (response.cancelled) {
+        throw new Error("Sign request cancelled by user")
       }
 
+      const signatureHex = response.signatureHex;
+      if (!signatureHex) {
+        throw new Error("Failed to get signature from wallet")
+      }
+
+      // Reconstruct the deploy from the JSON
+      // We use the original object, not the string
+      const originalDeployJson = typeof deployJson === 'string' ? JSON.parse(deployJson) : deployJson;
+      const deploy = DeployUtil.deployFromJson(originalDeployJson).unwrap();
+
+      // Construct the signature with the correct tag
+      // Casper Wallet returns raw signature bytes (hex)
+      // We need to prepend the tag based on the key type (01 for Ed25519, 02 for Secp256k1)
+      const publicKey = CLPublicKey.fromHex(account);
+      const tag = publicKey.tag; // 1 or 2
+      const tagHex = tag.toString(16).padStart(2, '0'); // "01" or "02"
+      const signatureWithTag = tagHex + signatureHex;
+
+      // Add the approval to the deploy
+      const approval = new DeployUtil.Approval();
+      approval.signer = account;
+      approval.signature = signatureWithTag;
+      deploy.approvals.push(approval);
+
       // Step 3: Submit signed deploy to the network
-      const submitResult = await submitDeploy(JSON.stringify(signedDeploy.deploy))
+      const signedDeployJson = DeployUtil.deployToJson(deploy);
+      const submitResult = await submitDeploy(JSON.stringify(signedDeployJson))
+      console.log("Submit result:", submitResult);
 
       if (!submitResult.success) {
         throw new Error(submitResult.error || "Failed to submit deploy")

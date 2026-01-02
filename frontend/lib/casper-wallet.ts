@@ -23,7 +23,7 @@ export interface CasperWalletProvider {
   isConnected: () => Promise<boolean>;
   getActivePublicKey: () => Promise<string>;
   signMessage: (message: string, signingPublicKeyHex: string) => Promise<string>;
-  signDeploy: (deploy: unknown, signingPublicKeyHex: string) => Promise<{ deploy: unknown }>;
+  sign: (deploy: unknown, signingPublicKeyHex: string) => Promise<{ cancelled: boolean; signatureHex: string }>;
 }
 
 /**
