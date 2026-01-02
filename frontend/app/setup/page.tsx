@@ -4,6 +4,14 @@ import { useState, useRef, useEffect } from "react"
 import { AnimatedNoise } from "@/components/animated-noise"
 import { ScrambleTextOnHover } from "@/components/scramble-text"
 import { BitmapChevron } from "@/components/bitmap-chevron"
+import {
+  connectWallet,
+  disconnectWallet,
+  isWalletConnected,
+  getActivePublicKey,
+  formatPublicKey,
+  isCasperWalletInstalled
+} from "@/lib/casper-wallet"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
 
@@ -15,7 +23,34 @@ export default function SetupPage() {
   const [guardians, setGuardians] = useState(["", ""])
   const [isConnected, setIsConnected] = useState(false)
   const [account, setAccount] = useState("")
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
   const minGuardians = 2
+
+  // Check if wallet is already connected on mount
+  useEffect(() => {
+    const checkExistingConnection = async () => {
+      try {
+        const connected = await isWalletConnected()
+        if (connected) {
+          const publicKey = await getActivePublicKey()
+          if (publicKey) {
+            setIsConnected(true)
+            setAccount(publicKey)
+          }
+        }
+      } catch (error) {
+        console.error("Error checking wallet connection:", error)
+      }
+    }
+
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      // Small delay to ensure Casper Wallet injection
+      const timer = setTimeout(checkExistingConnection, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [])
 
   useEffect(() => {
     if (!sectionRef.current || !formRef.current) return
@@ -50,9 +85,45 @@ export default function SetupPage() {
   }
 
   const handleConnectWallet = async () => {
-    // TODO: Implement Casper Wallet connection
-    setIsConnected(true)
-    setAccount("alice@hash123...")
+    setIsConnecting(true)
+    setConnectionError(null)
+
+    try {
+      // Check if Casper Wallet is installed
+      if (!isCasperWalletInstalled()) {
+        setConnectionError("Casper Wallet extension is not installed. Please install it from casperwallet.io")
+        window.open("https://www.casperwallet.io/", "_blank")
+        return
+      }
+
+      const publicKey = await connectWallet()
+
+      if (publicKey) {
+        setIsConnected(true)
+        setAccount(publicKey)
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to connect wallet"
+      setConnectionError(errorMessage)
+      console.error("Wallet connection error:", error)
+    } finally {
+      setIsConnecting(false)
+    }
+  }
+
+  const handleDisconnectWallet = async () => {
+    try {
+      const disconnected = await disconnectWallet()
+      if (disconnected) {
+        setIsConnected(false)
+        setAccount("")
+        setConnectionError(null)
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to disconnect wallet"
+      setConnectionError(errorMessage)
+      console.error("Wallet disconnect error:", error)
+    }
   }
 
   const handleSaveGuardians = async () => {
@@ -110,25 +181,49 @@ export default function SetupPage() {
                     Wallet Connection
                   </h3>
                   {isConnected ? (
-                    <p className="font-mono text-sm text-accent">
-                      Connected: {account}
-                    </p>
+                    <div>
+                      <p className="font-mono text-sm text-accent">
+                        Connected: {formatPublicKey(account)}
+                      </p>
+                      <p className="font-mono text-[10px] text-muted-foreground mt-1 break-all max-w-md">
+                        {account}
+                      </p>
+                    </div>
                   ) : (
                     <p className="font-mono text-sm text-muted-foreground">
-                      Not connected
+                      {isConnecting ? "Connecting..." : "Not connected"}
                     </p>
                   )}
                 </div>
-                {!isConnected && (
-                  <button
-                    onClick={handleConnectWallet}
-                    className="group inline-flex items-center gap-3 border border-foreground/20 px-6 py-3 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200"
-                  >
-                    <ScrambleTextOnHover text="Connect Wallet" as="span" duration={0.6} />
-                    <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />
-                  </button>
-                )}
+                <div className="flex items-center gap-3">
+                  {isConnected ? (
+                    <button
+                      onClick={handleDisconnectWallet}
+                      className="group inline-flex items-center gap-3 border border-foreground/20 px-6 py-3 font-mono text-xs uppercase tracking-widest text-foreground hover:border-red-500 hover:text-red-500 transition-all duration-200"
+                    >
+                      <ScrambleTextOnHover text="Disconnect" as="span" duration={0.6} />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleConnectWallet}
+                      disabled={isConnecting}
+                      className="group inline-flex items-center gap-3 border border-foreground/20 px-6 py-3 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ScrambleTextOnHover text={isConnecting ? "Connecting..." : "Connect Wallet"} as="span" duration={0.6} />
+                      {!isConnecting && <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />}
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {/* Error Message */}
+              {connectionError && (
+                <div className="mb-6 p-4 border border-red-500/30 bg-red-500/5">
+                  <p className="font-mono text-xs text-red-500">
+                    {connectionError}
+                  </p>
+                </div>
+              )}
 
               {isConnected && (
                 <div className="pt-6 border-t border-border/30">
