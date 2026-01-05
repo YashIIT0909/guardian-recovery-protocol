@@ -25,10 +25,10 @@ export class ContractService {
     constructor() {
         this.wasmPath = config.wasm.recoveryRegistry;
         this.contractHash = process.env.RECOVERY_CONTRACT_HASH || null;
-        
+
         const casperClient = new CasperClient(config.casper.nodeUrl);
         this.contractClient = new Contracts.Contract(casperClient);
-        
+
         if (this.contractHash) {
             this.contractClient.setContractHash(`hash-${this.contractHash}`);
             console.log(`Contract service initialized with hash: ${this.contractHash}`);
@@ -58,7 +58,7 @@ export class ContractService {
      */
     async buildInstallDeploy(installerPublicKeyHex: string): Promise<DeployResult> {
         const installerKey = CLPublicKey.fromHex(installerPublicKeyHex);
-        
+
         const deploy = deployService.buildSessionWasmDeploy(
             installerKey,
             this.wasmPath,
@@ -78,7 +78,7 @@ export class ContractService {
      */
     async buildTestContractDeploy(installerPublicKeyHex: string): Promise<DeployResult> {
         const installerKey = CLPublicKey.fromHex(installerPublicKeyHex);
-        
+
         const deploy = deployService.buildSessionWasmDeploy(
             installerKey,
             config.wasm.testContract,
@@ -139,7 +139,7 @@ export class ContractService {
 
         const deploy = this.buildContractCallDeploy(
             userPublicKey,
-            'initialize_guardians',
+            'init_guardians',
             args
         );
 
@@ -176,7 +176,7 @@ export class ContractService {
 
         const deploy = this.buildContractCallDeploy(
             initiatorKey,
-            'initiate_recovery',
+            'start_recovery',
             args
         );
 
@@ -197,12 +197,12 @@ export class ContractService {
         const guardianKey = CLPublicKey.fromHex(guardianPublicKeyHex);
 
         const args = RuntimeArgs.fromMap({
-            recovery_id: CLValueBuilder.u256(recoveryId),
+            id: CLValueBuilder.u256(recoveryId),
         });
 
         const deploy = this.buildContractCallDeploy(
             guardianKey,
-            'approve_recovery',
+            'approve',
             args
         );
 
@@ -223,12 +223,12 @@ export class ContractService {
         const signerKey = CLPublicKey.fromHex(signerPublicKeyHex);
 
         const args = RuntimeArgs.fromMap({
-            recovery_id: CLValueBuilder.u256(recoveryId),
+            id: CLValueBuilder.u256(recoveryId),
         });
 
         const deploy = this.buildContractCallDeploy(
             signerKey,
-            'is_threshold_met',
+            'is_approved',
             args
         );
 
@@ -249,12 +249,12 @@ export class ContractService {
         const signerKey = CLPublicKey.fromHex(signerPublicKeyHex);
 
         const args = RuntimeArgs.fromMap({
-            recovery_id: CLValueBuilder.u256(recoveryId),
+            id: CLValueBuilder.u256(recoveryId),
         });
 
         const deploy = this.buildContractCallDeploy(
             signerKey,
-            'finalize_recovery',
+            'finalize',
             args
         );
 

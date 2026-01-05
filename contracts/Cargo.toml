@@ -16,8 +16,8 @@ edition = "2021"
 license = "MIT"
 
 [workspace.dependencies]
-casper-contract = "4.0"
-casper-types = { version = "4.0", default-features = false }
+casper-contract = "5.1.1"
+casper-types = { version = "6.1.0", default-features = false }
 base64ct = "=1.6.0"
 
 [profile.release]
