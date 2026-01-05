@@ -4,10 +4,11 @@ import { ApiResponse } from '../types';
 
 const router = Router();
 
-/**
+/*
  * POST /recovery/deploy-test-contract
  * Deploy a minimal test contract to verify deployment works
  */
+/*
 router.post('/deploy-test-contract', async (req: Request, res: Response) => {
     try {
         const { installerPublicKey } = req.body;
@@ -35,11 +36,13 @@ router.post('/deploy-test-contract', async (req: Request, res: Response) => {
         } as ApiResponse);
     }
 });
+*/
 
 /**
  * POST /recovery/deploy-contract
  * Deploy the recovery registry contract (one-time setup)
  */
+/*
 router.post('/deploy-contract', async (req: Request, res: Response) => {
     try {
         const { installerPublicKey } = req.body;
@@ -74,11 +77,13 @@ router.post('/deploy-contract', async (req: Request, res: Response) => {
         } as ApiResponse);
     }
 });
+*/
 
 /**
  * GET /recovery/contract-status
  * Check if contract is deployed
  */
+/*
 router.get('/contract-status', async (req: Request, res: Response) => {
     res.json({
         success: true,
@@ -88,6 +93,7 @@ router.get('/contract-status', async (req: Request, res: Response) => {
         },
     } as ApiResponse);
 });
+*/
 
 /**
  * POST /recovery/register
@@ -110,7 +116,7 @@ router.post('/register', async (req: Request, res: Response) => {
                 error: 'At least 2 guardians are required',
             } as ApiResponse);
         }
-        
+
         // Check that user is not in the guardians list
         const userIsGuardian = guardians.some(
             (g: string) => g.trim().toLowerCase() === userPublicKey.trim().toLowerCase()
@@ -121,7 +127,7 @@ router.post('/register', async (req: Request, res: Response) => {
                 error: 'User account cannot be a guardian. Guardians must be different accounts.',
             } as ApiResponse);
         }
-        
+
         // Check for duplicate guardians
         const uniqueGuardians = new Set(guardians.map((g: string) => g.trim().toLowerCase()));
         if (uniqueGuardians.size !== guardians.length) {
@@ -159,7 +165,7 @@ router.post('/register', async (req: Request, res: Response) => {
 router.post('/initiate', async (req: Request, res: Response) => {
     console.log('\n\n========== INITIATE RECOVERY ==========');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
-    
+
     try {
         const { initiatorPublicKey, targetAccount, newPublicKey } = req.body;
 
@@ -180,7 +186,7 @@ router.post('/initiate', async (req: Request, res: Response) => {
             targetAccount,
             newPublicKey
         );
-        
+
         console.log('Deploy built successfully');
         console.log('========================================\n');
 
@@ -429,6 +435,37 @@ router.get('/active/:publicKey', async (req: Request, res: Response) => {
         res.status(500).json({
             success: false,
             error: `Failed to get active recovery: ${error}`,
+        } as ApiResponse);
+    }
+});
+
+/**
+ * GET /recovery/account-status/:publicKey
+ * Get guardian configuration for an account (off-chain query)
+ */
+router.get('/account-status/:publicKey', async (req: Request, res: Response) => {
+    try {
+        const { publicKey } = req.params;
+
+        // Parallelize queries for performance
+        const [isInitialized, guardians, threshold] = await Promise.all([
+            casperService.hasGuardians(publicKey),
+            casperService.getGuardians(publicKey),
+            casperService.getThreshold(publicKey)
+        ]);
+
+        res.json({
+            success: true,
+            data: {
+                isInitialized,
+                guardians,
+                threshold,
+            },
+        } as ApiResponse);
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: `Failed to get account status: ${error}`,
         } as ApiResponse);
     }
 });

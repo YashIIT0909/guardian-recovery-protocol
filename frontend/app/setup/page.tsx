@@ -15,7 +15,7 @@ import {
   getProvider
 } from "@/lib/casper-wallet"
 
-import { registerGuardians, submitDeploy, getDeployStatus, checkHasGuardians, queryGuardians, buildAddKeyDeploy, buildUpdateThresholdsDeploy } from "@/lib/api"
+import { registerGuardians, submitDeploy, getDeployStatus, checkHasGuardians, queryGuardians, buildAddKeyDeploy, buildUpdateThresholdsDeploy, getAccountStatus } from "@/lib/api"
 
 import { isValidCasperAddress, getAddressValidationError } from "@/lib/validation"
 import gsap from "gsap"
@@ -41,6 +41,7 @@ export default function SetupPage() {
   const [deployHash, setDeployHash] = useState<string | null>(null)
   const [deployStatus, setDeployStatus] = useState<"pending" | "success" | "failed" | null>(null)
   const [registeredGuardians, setRegisteredGuardians] = useState<string[]>([])
+  const [registeredThreshold, setRegisteredThreshold] = useState<number>(1)
   const [isLoadingGuardians, setIsLoadingGuardians] = useState(false)
 
   // Load guardians from localStorage when account connects
@@ -50,9 +51,15 @@ export default function SetupPage() {
       const stored = localStorage.getItem(storageKey)
       if (stored) {
         try {
-          const guardians = JSON.parse(stored)
-          if (Array.isArray(guardians) && guardians.length > 0) {
-            setRegisteredGuardians(guardians)
+          const data = JSON.parse(stored)
+          // Handle both old format (array) and new format (object with guardians)
+          if (data.guardians && Array.isArray(data.guardians) && data.guardians.length > 0) {
+            setRegisteredGuardians(data.guardians)
+            setRegisteredThreshold(data.threshold || 1)
+            setSaveSuccess(true)
+          } else if (Array.isArray(data) && data.length > 0) {
+            // Legacy format - plain array
+            setRegisteredGuardians(data)
             setSaveSuccess(true)
           }
         } catch (error) {
@@ -67,44 +74,64 @@ export default function SetupPage() {
     const fetchExistingGuardians = async () => {
       if (!account) return
 
-      // Check if we already have guardians in localStorage
-      const storageKey = `guardians_${account}`
-      const storedGuardians = localStorage.getItem(storageKey)
-      if (storedGuardians) {
-        return // Already loaded from localStorage
-      }
-
       setIsLoadingGuardians(true)
       try {
-        // Step 1: Check if guardians exist (simple GET request - no transaction)
-        const hasResult = await checkHasGuardians(account)
+        // Fetch account status which includes guardians (associated keys)
+        const statusResult = await getAccountStatus(account)
 
-        if (hasResult.success && hasResult.data?.hasGuardians) {
-          // Step 2: Fetch the guardians list (simple GET request - no transaction)
-          const guardiansResult = await queryGuardians(account)
+        if (statusResult && statusResult.guardians && statusResult.guardians.length > 0) {
+          // Filter out the user's own key (first key is usually the owner)
+          // Associated keys include the owner's key, so guardians are any additional keys
+          const guardianKeys = statusResult.guardians
+          const threshold = statusResult.threshold || 1
 
-          if (guardiansResult.success && guardiansResult.data?.guardians) {
-            const fetchedGuardians = guardiansResult.data.guardians
-            const threshold = guardiansResult.data.threshold || fetchedGuardians.length
+          if (guardianKeys.length > 1) {
+            // More than 1 key means guardians are set up (first key is owner)
+            // Store in localStorage for persistence
+            const storageKey = `guardians_${account}`
+            localStorage.setItem(storageKey, JSON.stringify({
+              guardians: guardianKeys,
+              threshold: threshold
+            }))
 
-            // Note: The blockchain stores account hashes, not public keys
-            // We can't convert back to public keys, so show a helpful message
-            // The user should have the original public keys in localStorage from when they set up
-            setRegisteredGuardians([
-              `${fetchedGuardians.length} protector(s) configured (threshold: ${threshold})`,
-              "Original public keys not available - they were saved when you set up guardians"
-            ])
-            setSaveSuccess(true)
-          } else {
-            // Guardians exist but couldn't fetch the list - show placeholder
-            setRegisteredGuardians(["Protectors already configured for this account"])
+            setRegisteredGuardians(guardianKeys)
+            setRegisteredThreshold(threshold)
             setSaveSuccess(true)
           }
+        } else {
+          // Check localStorage as fallback
+          const storageKey = `guardians_${account}`
+          const stored = localStorage.getItem(storageKey)
+          if (stored) {
+            try {
+              const data = JSON.parse(stored)
+              if (data.guardians && Array.isArray(data.guardians) && data.guardians.length > 0) {
+                setRegisteredGuardians(data.guardians)
+                setRegisteredThreshold(data.threshold || 1)
+                setSaveSuccess(true)
+              }
+            } catch (error) {
+              console.error('Error parsing stored guardians:', error)
+            }
+          }
         }
-        // If hasGuardians is false, user hasn't set up guardians yet - nothing to do
       } catch (error) {
         console.error("Error checking guardians:", error)
-        // Silently fail - user might not have guardians registered yet
+        // Fallback to localStorage
+        const storageKey = `guardians_${account}`
+        const stored = localStorage.getItem(storageKey)
+        if (stored) {
+          try {
+            const data = JSON.parse(stored)
+            if (data.guardians && Array.isArray(data.guardians) && data.guardians.length > 0) {
+              setRegisteredGuardians(data.guardians)
+              setRegisteredThreshold(data.threshold || 1)
+              setSaveSuccess(true)
+            }
+          } catch (error) {
+            console.error('Error parsing stored guardians:', error)
+          }
+        }
       } finally {
         setIsLoadingGuardians(false)
       }
@@ -206,6 +233,40 @@ export default function SetupPage() {
     }
     setGuardianErrors(newErrors)
   }
+
+  // Check for existing configuration on connect
+  // Check for existing configuration on connect
+  useEffect(() => {
+    async function checkExistingConfig() {
+      if (account) {
+        try {
+          const status = await getAccountStatus(account);
+          if (status.isInitialized) {
+            console.log('Found existing configuration:', status);
+
+            // Update guardians state
+            // The API returns public keys (strings)
+            // If we have fewer guardians than the minimum (2), pad with empty strings
+            let newGuardians = [...status.guardians];
+            while (newGuardians.length < 2) {
+              newGuardians.push("");
+            }
+
+            setGuardians(newGuardians);
+            setRegisteredGuardians(status.guardians);
+            setSaveSuccess(true);
+
+            alert('Existing guardian configuration loaded!');
+          }
+        } catch (error) {
+          console.error('Error checking account status:', error);
+        }
+      }
+    }
+
+    checkExistingConfig();
+  }, [account]);
+
 
   const handleAddGuardian = () => {
     setGuardians([...guardians, ""])
@@ -744,26 +805,41 @@ export default function SetupPage() {
                 </div>
 
                 <div className="space-y-4">
-                  {registeredGuardians.map((guardian, index) => (
-                    <div key={index} className="border border-border/30 p-4 bg-background/50">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground mb-2">
-                            Protector {index + 1}
+                  {registeredGuardians.map((guardian, index) => {
+                    // Format the account hash for display
+                    const displayHash = guardian.length > 40
+                      ? `${guardian.slice(0, 20)}...${guardian.slice(-16)}`
+                      : guardian
+
+                    return (
+                      <div key={index} className="border border-border/30 p-4 bg-background/50">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground mb-2">
+                              Protector {index + 1}
+                            </div>
+                            <div
+                              className="font-mono text-xs text-foreground cursor-pointer hover:text-accent transition-colors"
+                              title={guardian}
+                              onClick={() => {
+                                navigator.clipboard.writeText(guardian)
+                                // Could add a toast notification here
+                              }}
+                            >
+                              {displayHash}
+                              <span className="ml-2 text-muted-foreground text-[10px]">(click to copy)</span>
+                            </div>
                           </div>
-                          <div className="font-mono text-xs text-foreground break-all">
-                            {guardian}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="font-mono text-[10px] uppercase tracking-widest text-accent">
+                              Active
+                            </span>
+                            <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-mono text-[10px] uppercase tracking-widest text-accent">
-                            Active
-                          </span>
-                          <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
 
                 {/* Success Display */}

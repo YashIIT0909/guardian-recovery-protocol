@@ -3,8 +3,8 @@
 
 import axios, { AxiosInstance } from 'axios';
 
-// API Base URL - defaults to localhost:3000 for development
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// API Base URL - defaults to localhost:5000 for development
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 // Create axios instance with default config
 const apiClient: AxiosInstance = axios.create({
@@ -381,7 +381,18 @@ export const getDeployStatus = async (
 };
 
 // ==================== HEALTH CHECK ====================
-
+export async function getAccountStatus(publicKey: string): Promise<{
+    isInitialized: boolean;
+    guardians: string[];
+    threshold: number;
+}> {
+    const response = await fetch(`${API_BASE_URL}/api/recovery/account-status/${publicKey}`);
+    if (!response.ok) {
+        throw new Error('Failed to get account status');
+    }
+    const result = await response.json();
+    return result.data;
+}
 /**
  * Check API health
  */
