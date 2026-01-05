@@ -4,8 +4,6 @@ import {
     RuntimeArgs,
     CLAccountHash,
     DeployUtil,
-    Contracts,
-    CasperClient,
 } from 'casper-js-sdk';
 import { config } from '../config';
 import { deployService } from './deploy.service';
@@ -27,15 +25,11 @@ export class ContractService {
     private buildContractDeploy(
         callerPublicKey: CLPublicKey,
         entryPoint: string,
-        entryPoint: string,
         args: RuntimeArgs,
         paymentAmount: string = config.deploy.paymentAmount
     ): DeployUtil.Deploy {
         return deployService.buildContractCallDeploy(
             callerPublicKey,
-            this.contractHash,
-            entryPoint,
-            args,
             this.contractHash,
             entryPoint,
             args,
@@ -66,7 +60,7 @@ export class ContractService {
 
         const args = RuntimeArgs.fromMap({
             action: CLValueBuilder.u8(1), // Action 1: Initialize Guardians
-            account: CLValueBuilder.byteArray(userAccountHash),
+            account: CLValueBuilder.key(userAccountHash),
             guardians: CLValueBuilder.list(guardianAccountHashes),
             threshold: CLValueBuilder.u8(threshold),
         });
@@ -102,21 +96,13 @@ export class ContractService {
         const targetAccount = CLPublicKey.fromHex(targetAccountHex);
         const newPublicKey = CLPublicKey.fromHex(newPublicKeyHex);
 
-        const targetAccountHash = new CLAccountHash(targetAccount.toAccountHash());
-
-        console.log('Initiate Recovery Debug:');
-        console.log('  Target Public Key:', targetAccountHex);
-        console.log('  Target Account Hash:', Buffer.from(targetAccount.toAccountHash()).toString('hex'));
-        console.log('  Contract Hash:', this.contractHash);
-
         const args = RuntimeArgs.fromMap({
-            account: CLValueBuilder.byteArray(targetAccount.toAccountHash()),
+            account: CLValueBuilder.key(new CLAccountHash(targetAccount.toAccountHash())),
             new_key: newPublicKey,
         });
 
         const deploy = this.buildContractDeploy(
             initiatorKey,
-            'start_recovery',
             'start_recovery',
             args
         );
@@ -143,12 +129,10 @@ export class ContractService {
 
         const args = RuntimeArgs.fromMap({
             id: CLValueBuilder.u256(recoveryId),
-            id: CLValueBuilder.u256(recoveryId),
         });
 
         const deploy = this.buildContractDeploy(
             guardianKey,
-            'approve',
             'approve',
             args
         );
@@ -174,7 +158,6 @@ export class ContractService {
         const signerKey = CLPublicKey.fromHex(signerPublicKeyHex);
 
         const args = RuntimeArgs.fromMap({
-            id: CLValueBuilder.u256(recoveryId),
             id: CLValueBuilder.u256(recoveryId),
         });
 
@@ -207,16 +190,11 @@ export class ContractService {
 
         const args = RuntimeArgs.fromMap({
             id: CLValueBuilder.u256(recoveryId),
-            id: CLValueBuilder.u256(recoveryId),
         });
 
         const deploy = this.buildContractDeploy(
             signerKey,
             'finalize',
-<<<<<<< HEAD
-            'finalize',
-=======
->>>>>>> refs/remotes/origin/contracts
             args
         );
 
@@ -243,7 +221,7 @@ export class ContractService {
         const targetAccountHash = new CLAccountHash(targetAccount.toAccountHash());
 
         const args = RuntimeArgs.fromMap({
-            account: targetAccountHash,
+            account: CLValueBuilder.key(targetAccountHash),
         });
 
         const deploy = this.buildContractDeploy(
@@ -272,7 +250,7 @@ export class ContractService {
         const targetAccountHash = new CLAccountHash(targetAccount.toAccountHash());
 
         const args = RuntimeArgs.fromMap({
-            account: targetAccountHash,
+            account: CLValueBuilder.key(targetAccountHash),
         });
 
         const deploy = this.buildContractDeploy(

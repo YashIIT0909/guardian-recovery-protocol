@@ -92,10 +92,10 @@ export class CasperService {
         actionThresholds: { deployment: number; keyManagement: number };
     }> {
         const accountInfo = await this.getAccountInfo(publicKeyHex);
-        
+
         // Handle different response structures from Casper SDK
         const account = accountInfo?.Account || accountInfo?.stored_value?.Account || accountInfo;
-        
+
         if (!account) {
             console.error('Account info structure:', JSON.stringify(accountInfo, null, 2));
             throw new Error('Could not parse account info');
@@ -159,22 +159,17 @@ export class CasperService {
     }
 
     /**
-     * Check if account has guardians registered (reads from named keys)
+     * Check if account has guardians registered (checks associated keys)
      */
     async hasGuardians(publicKeyHex: string): Promise<boolean> {
         try {
-            const publicKey = CLPublicKey.fromHex(publicKeyHex);
-            // AccountHash Display format is "account-hash-{hex}"
-            const accountHashStr = publicKey.toAccountHashStr();
+            const accountInfo = await this.getAccountInfo(publicKeyHex);
+            if (!accountInfo || !accountInfo.Account) return false;
 
-            // The contract stores: grp_init_{account_hash_display}
-            const keyName = `grp_init_${accountHashStr}`;
-            const result = await this.queryAccountNamedKey(publicKeyHex, keyName);
-
-            if (result && result.CLValue) {
-                return result.CLValue.data === true;
-            }
-            return false;
+            // Handle both snake_case and camelCase
+            const associatedKeys = accountInfo.Account.associated_keys || accountInfo.Account.associatedKeys || [];
+            // If there's more than 1 key, it implies guardians are added
+            return associatedKeys.length > 1;
         } catch (error) {
             console.error(`Error checking has guardians: ${error}`);
             return false;
@@ -182,27 +177,19 @@ export class CasperService {
     }
 
     /**
-     * Get guardians for an account (reads from named keys)
+     * Get guardians for an account (returns associated keys)
      */
     async getGuardians(publicKeyHex: string): Promise<string[]> {
         try {
-            const publicKey = CLPublicKey.fromHex(publicKeyHex);
-            // AccountHash Display format is "account-hash-{hex}"
-            const accountHashStr = publicKey.toAccountHashStr();
+            const accountInfo = await this.getAccountInfo(publicKeyHex);
+            if (!accountInfo || !accountInfo.Account) return [];
 
-            // The contract stores: grp_guardians_{account_hash_display}
-            const keyName = `grp_guardians_${accountHashStr}`;
-            const result = await this.queryAccountNamedKey(publicKeyHex, keyName);
+            // Handle both snake_case and camelCase
+            const associatedKeys = accountInfo.Account.associated_keys || accountInfo.Account.associatedKeys || [];
 
-            if (result && result.CLValue && Array.isArray(result.CLValue.data)) {
-                // Convert account hashes back to hex strings
-                return result.CLValue.data.map((hash: any) => {
-                    if (typeof hash === 'string') return hash;
-                    if (hash.data) return `account-hash-${Buffer.from(hash.data).toString('hex')}`;
-                    return String(hash);
-                });
-            }
-            return [];
+            // Return all associated keys (including the primary one)
+            // The frontend can filter if needed, or we can return all "guardians"
+            return associatedKeys.map((k: any) => k.account_hash || k.accountHash);
         } catch (error) {
             console.error(`Error getting guardians: ${error}`);
             return [];
@@ -210,22 +197,18 @@ export class CasperService {
     }
 
     /**
-     * Get threshold for an account (reads from named keys)
+     * Get threshold for an account (returns key_management threshold)
      */
     async getThreshold(publicKeyHex: string): Promise<number> {
         try {
-            const publicKey = CLPublicKey.fromHex(publicKeyHex);
-            // AccountHash Display format is "account-hash-{hex}"
-            const accountHashStr = publicKey.toAccountHashStr();
+            const accountInfo = await this.getAccountInfo(publicKeyHex);
+            if (!accountInfo || !accountInfo.Account) return 0;
 
-            // The contract stores: grp_threshold_{account_hash_display}
-            const keyName = `grp_threshold_${accountHashStr}`;
-            const result = await this.queryAccountNamedKey(publicKeyHex, keyName);
+            // Handle both snake_case and camelCase
+            const actionThresholds = accountInfo.Account.action_thresholds || accountInfo.Account.actionThresholds;
+            if (!actionThresholds) return 1; // Default threshold
 
-            if (result && result.CLValue) {
-                return Number(result.CLValue.data) || 0;
-            }
-            return 0;
+            return actionThresholds.key_management || actionThresholds.keyManagement || 1;
         } catch (error) {
             console.error(`Error getting threshold: ${error}`);
             return 0;
@@ -458,7 +441,7 @@ export class CasperService {
             }
 
             return {
-                account: accountResult.CLValue.data ? 
+                account: accountResult.CLValue.data ?
                     `account-hash-${Buffer.from(accountResult.CLValue.data).toString('hex')}` : '',
                 newKey: newKeyResult?.CLValue?.data || '',
                 approvalCount: Number(countResult?.CLValue?.data) || 0,
