@@ -690,6 +690,238 @@ export class CasperService {
             return null;
         }
     }
+
+    /**
+     * Get all recoveries where the given public key is a guardian
+     * Iterates through all recoveries and checks if the wallet is a guardian for each
+     */
+    async getRecoveriesForGuardian(guardianPublicKeyHex: string): Promise<{
+        recoveryId: string;
+        targetAccount: string;
+        newKey: string | null;
+        approvalCount: number;
+        threshold: number;
+        isApproved: boolean;
+        alreadyApproved: boolean;
+    }[]> {
+        try {
+            const contractHash = config.contract.recoveryRegistryHash;
+            if (!contractHash) {
+                console.error('Contract hash not configured');
+                return [];
+            }
+
+            console.log('\n=== Getting Recoveries For Guardian ===');
+            console.log('Guardian Public Key:', guardianPublicKeyHex);
+
+            // Get guardian's account hash for comparison
+            const guardianPubKey = CLPublicKey.fromHex(guardianPublicKeyHex);
+            const guardianAccountHash = guardianPubKey.toAccountHash();
+            const guardianAccountHashHex = Buffer.from(guardianAccountHash).toString('hex');
+            const guardianDebugFormat = `AccountHash(${guardianAccountHashHex})`;
+
+            console.log('Guardian Account Hash Hex:', guardianAccountHashHex);
+            console.log('Guardian Debug Format:', guardianDebugFormat);
+
+            // Get total recovery count from contract
+            const countResult = await this.queryContractDictionary(contractHash, 'd', 'c');
+            console.log('Count RAW result:', JSON.stringify(countResult, null, 2));
+
+            const totalCount = countResult?.stored_value?.CLValue?.data;
+            let count = 0;
+
+            if (totalCount) {
+                if (typeof totalCount === 'object' && totalCount !== null) {
+                    count = parseInt(totalCount.toString(), 10);
+                } else {
+                    count = Number(totalCount);
+                }
+            }
+
+            console.log('Total recovery count (parsed):', count);
+
+            // Also try to check if there's an active recovery for the guardian's account (a{:?} key)
+            console.log('\n=== Checking Active Recovery for Guardian Account ===');
+            const activeRecoveryResult = await this.queryContractDictionary(
+                contractHash, 'd', `a${guardianDebugFormat}`
+            );
+            console.log('Active recovery for guardian account:', JSON.stringify(activeRecoveryResult?.stored_value?.CLValue?.data));
+
+            // Log ALL recoveries in the contract for debugging
+            // Force check at least 5 slots to see if there are hidden recoveries
+            const checkCount = Math.max(count, 5);
+            console.log(`\n=== ALL RECOVERIES IN CONTRACT (Checking first ${checkCount} slots) ===`);
+
+            for (let i = 1; i <= checkCount; i++) {
+                const raResult = await this.queryContractDictionary(contractHash, 'd', `ra${i}`);
+                const rkResult = await this.queryContractDictionary(contractHash, 'd', `rk${i}`);
+                const rcResult = await this.queryContractDictionary(contractHash, 'd', `rc${i}`);
+                const roResult = await this.queryContractDictionary(contractHash, 'd', `ro${i}`);
+
+                const raData = raResult?.stored_value?.CLValue?.data;
+                let targetHex = 'NOT FOUND';
+                if (raData) {
+                    if (typeof raData === 'string') {
+                        targetHex = raData;
+                    } else if (Array.isArray(raData)) {
+                        targetHex = Buffer.from(raData).toString('hex');
+                    } else if (raData?.data) {
+                        targetHex = Buffer.from(raData.data).toString('hex');
+                    }
+                }
+
+                const rkData = rkResult?.stored_value?.CLValue?.data;
+                let newKeyHex = 'NOT FOUND';
+                if (rkData) {
+                    if (typeof rkData === 'string') {
+                        newKeyHex = rkData;
+                    } else if (Array.isArray(rkData)) {
+                        newKeyHex = Buffer.from(rkData).toString('hex');
+                    }
+                }
+
+                console.log(`Recovery #${i}:`);
+                console.log(`  Target Account: ${targetHex}`);
+                console.log(`  New Key: ${newKeyHex}`);
+                console.log(`  Approval Count: ${rcResult?.stored_value?.CLValue?.data || 0}`);
+                console.log(`  Is Approved: ${roResult?.stored_value?.CLValue?.data || false}`);
+            }
+            console.log('=================================\n');
+
+            const results: {
+                recoveryId: string;
+                targetAccount: string;
+                newKey: string | null;
+                approvalCount: number;
+                threshold: number;
+                isApproved: boolean;
+                alreadyApproved: boolean;
+            }[] = [];
+
+            // Iterate through all recovery IDs
+            for (let id = 1; id <= count; id++) {
+                const idStr = id.toString();
+                console.log(`\n--- Checking Recovery ${idStr} ---`);
+
+                // Get target account for this recovery (stored as AccountHash bytes)
+                const accResult = await this.queryContractDictionary(contractHash, 'd', `ra${idStr}`);
+                console.log('ra result:', JSON.stringify(accResult?.stored_value?.CLValue));
+
+                if (!accResult?.stored_value?.CLValue?.data) {
+                    console.log('Recovery not found, skipping');
+                    continue;
+                }
+
+                // Parse the AccountHash - it's stored as byte array
+                const targetAccountData = accResult.stored_value.CLValue.data;
+                let targetAccountHex: string;
+
+                if (typeof targetAccountData === 'string') {
+                    targetAccountHex = targetAccountData;
+                } else if (Array.isArray(targetAccountData)) {
+                    // It's a byte array
+                    targetAccountHex = Buffer.from(targetAccountData).toString('hex');
+                } else if (targetAccountData?.data) {
+                    // It might be wrapped in a data property
+                    targetAccountHex = Buffer.from(targetAccountData.data).toString('hex');
+                } else {
+                    targetAccountHex = Buffer.from(targetAccountData).toString('hex');
+                }
+
+                const targetDebugFormat = `AccountHash(${targetAccountHex})`;
+                console.log('Target Account Hex:', targetAccountHex);
+                console.log('Target Debug Format:', targetDebugFormat);
+
+                // Get guardians for this account using the debug format key
+                const guardiansResult = await this.queryContractDictionary(
+                    contractHash, 'd', `g${targetDebugFormat}`
+                );
+                console.log('Guardians result:', JSON.stringify(guardiansResult?.stored_value?.CLValue?.data));
+
+                if (!guardiansResult?.stored_value?.CLValue?.data) {
+                    console.log('No guardians found for this account, skipping');
+                    continue;
+                }
+
+                const guardians = guardiansResult.stored_value.CLValue.data;
+                if (!Array.isArray(guardians)) {
+                    console.log('Guardians data is not an array, skipping');
+                    continue;
+                }
+
+                console.log('Found', guardians.length, 'guardians');
+
+                // Check if connected wallet is a guardian
+                // Guardians are stored as AccountHash bytes, need to convert to hex for comparison
+                const isGuardian = guardians.some((g: any) => {
+                    let gHex: string;
+                    if (typeof g === 'string') {
+                        gHex = g;
+                    } else if (Array.isArray(g)) {
+                        gHex = Buffer.from(g).toString('hex');
+                    } else if (g?.data) {
+                        gHex = Buffer.from(g.data).toString('hex');
+                    } else {
+                        gHex = Buffer.from(g).toString('hex');
+                    }
+                    console.log('  Comparing guardian:', gHex, 'with', guardianAccountHashHex);
+                    return gHex.toLowerCase() === guardianAccountHashHex.toLowerCase();
+                });
+
+                if (!isGuardian) {
+                    console.log('Not a guardian for this account, skipping');
+                    continue;
+                }
+
+                console.log('✓ Guardian IS a protector for this recovery');
+
+                // Get recovery details
+                const [newKeyResult, approvalCountResult, approvedResult, thresholdResult] = await Promise.all([
+                    this.queryContractDictionary(contractHash, 'd', `rk${idStr}`),
+                    this.queryContractDictionary(contractHash, 'd', `rc${idStr}`),
+                    this.queryContractDictionary(contractHash, 'd', `ro${idStr}`),
+                    this.queryContractDictionary(contractHash, 'd', `t${targetDebugFormat}`),
+                ]);
+
+                // Check if this guardian already approved
+                const approvedByGuardianResult = await this.queryContractDictionary(
+                    contractHash, 'd', `rp${idStr}_${guardianDebugFormat}`
+                );
+                const alreadyApproved = approvedByGuardianResult?.stored_value?.CLValue?.data === true;
+                console.log('Already approved by this guardian:', alreadyApproved);
+
+                const newKeyData = newKeyResult?.stored_value?.CLValue?.data;
+                let newKeyHex: string | null = null;
+                if (newKeyData) {
+                    if (typeof newKeyData === 'string') {
+                        newKeyHex = newKeyData;
+                    } else if (Array.isArray(newKeyData)) {
+                        newKeyHex = Buffer.from(newKeyData).toString('hex');
+                    } else if (newKeyData?.data) {
+                        newKeyHex = Buffer.from(newKeyData.data).toString('hex');
+                    }
+                }
+
+                results.push({
+                    recoveryId: idStr,
+                    targetAccount: `account-hash-${targetAccountHex}`,
+                    newKey: newKeyHex,
+                    approvalCount: Number(approvalCountResult?.stored_value?.CLValue?.data) || 0,
+                    threshold: Number(thresholdResult?.stored_value?.CLValue?.data) || 2,
+                    isApproved: approvedResult?.stored_value?.CLValue?.data === true,
+                    alreadyApproved,
+                });
+            }
+
+            console.log(`\nFound ${results.length} recoveries for this guardian`);
+            console.log('========================================\n');
+
+            return results;
+        } catch (error) {
+            console.error(`Error getting recoveries for guardian: ${error}`);
+            return [];
+        }
+    }
 }
 
 // Export singleton instance

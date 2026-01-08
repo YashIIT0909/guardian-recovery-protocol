@@ -14,7 +14,7 @@ import {
     isCasperWalletInstalled,
     getProvider
 } from "@/lib/casper-wallet"
-import { approveRecovery, submitDeploy, getDeployStatus } from "@/lib/api"
+import { approveRecovery, submitDeploy, getDeployStatus, getRecoveriesForGuardian, GuardianRecovery } from "@/lib/api"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
 
@@ -46,12 +46,12 @@ const phases: { id: RecoveryPhase; label: string; description: string }[] = [
     { id: "finalized", label: "Complete", description: "Account recovered" },
 ]
 
-function PhaseCheckpoint({ 
-    phase, 
-    isActive, 
-    isComplete, 
-    isLast 
-}: { 
+function PhaseCheckpoint({
+    phase,
+    isActive,
+    isComplete,
+    isLast
+}: {
     phase: typeof phases[0]
     isActive: boolean
     isComplete: boolean
@@ -61,22 +61,20 @@ function PhaseCheckpoint({
         <div className="flex items-start gap-4 relative">
             {/* Vertical connector line */}
             {!isLast && (
-                <div 
-                    className={`absolute left-[15px] top-[32px] w-[2px] h-[calc(100%+16px)] ${
-                        isComplete ? "bg-green-500" : "bg-border/30"
-                    }`}
+                <div
+                    className={`absolute left-[15px] top-[32px] w-[2px] h-[calc(100%+16px)] ${isComplete ? "bg-green-500" : "bg-border/30"
+                        }`}
                 />
             )}
-            
+
             {/* Checkpoint box */}
-            <div 
-                className={`relative z-10 w-8 h-8 flex items-center justify-center border-2 transition-all duration-300 ${
-                    isComplete 
-                        ? "bg-green-500/20 border-green-500 text-green-500" 
-                        : isActive 
-                            ? "bg-accent/20 border-accent text-accent animate-pulse" 
-                            : "bg-background border-border/50 text-muted-foreground"
-                }`}
+            <div
+                className={`relative z-10 w-8 h-8 flex items-center justify-center border-2 transition-all duration-300 ${isComplete
+                    ? "bg-green-500/20 border-green-500 text-green-500"
+                    : isActive
+                        ? "bg-accent/20 border-accent text-accent animate-pulse"
+                        : "bg-background border-border/50 text-muted-foreground"
+                    }`}
             >
                 {isComplete ? (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -86,12 +84,11 @@ function PhaseCheckpoint({
                     <span className="font-mono text-xs">{phases.findIndex(p => p.id === phase.id) + 1}</span>
                 )}
             </div>
-            
+
             {/* Phase info */}
             <div className="flex-1 pb-8">
-                <h4 className={`font-mono text-sm uppercase tracking-widest ${
-                    isComplete ? "text-green-500" : isActive ? "text-accent" : "text-muted-foreground"
-                }`}>
+                <h4 className={`font-mono text-sm uppercase tracking-widest ${isComplete ? "text-green-500" : isActive ? "text-accent" : "text-muted-foreground"
+                    }`}>
                     {phase.label}
                 </h4>
                 <p className="font-mono text-xs text-muted-foreground mt-1">
@@ -104,18 +101,16 @@ function PhaseCheckpoint({
 
 function GuardianApprovalCard({ guardian, index }: { guardian: GuardianStatus; index: number }) {
     return (
-        <div className={`border p-4 transition-all duration-300 ${
-            guardian.approved 
-                ? "border-green-500/50 bg-green-500/5" 
-                : "border-border/30 bg-background"
-        }`}>
+        <div className={`border p-4 transition-all duration-300 ${guardian.approved
+            ? "border-green-500/50 bg-green-500/5"
+            : "border-border/30 bg-background"
+            }`}>
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 flex items-center justify-center border ${
-                        guardian.approved 
-                            ? "border-green-500 text-green-500 bg-green-500/10" 
-                            : "border-border/50 text-muted-foreground"
-                    }`}>
+                    <div className={`w-8 h-8 flex items-center justify-center border ${guardian.approved
+                        ? "border-green-500 text-green-500 bg-green-500/10"
+                        : "border-border/50 text-muted-foreground"
+                        }`}>
                         {guardian.approved ? (
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                                 <polyline points="20 6 9 17 4 12" />
@@ -134,9 +129,8 @@ function GuardianApprovalCard({ guardian, index }: { guardian: GuardianStatus; i
                     </div>
                 </div>
                 <div className="text-right">
-                    <span className={`font-mono text-xs uppercase tracking-widest ${
-                        guardian.approved ? "text-green-500" : "text-yellow-500"
-                    }`}>
+                    <span className={`font-mono text-xs uppercase tracking-widest ${guardian.approved ? "text-green-500" : "text-yellow-500"
+                        }`}>
                         {guardian.approved ? "Approved" : "Pending"}
                     </span>
                     {guardian.approvedAt && (
@@ -165,6 +159,12 @@ export default function DashboardPage() {
     const [approveError, setApproveError] = useState<string | null>(null)
     const [approveSuccess, setApproveSuccess] = useState(false)
     const [deployHash, setDeployHash] = useState<string | null>(null)
+    const [approvingRecoveryId, setApprovingRecoveryId] = useState<string | null>(null)
+
+    // Guardian recoveries auto-fetched
+    const [guardianRecoveries, setGuardianRecoveries] = useState<GuardianRecovery[]>([])
+    const [isLoadingGuardianRecoveries, setIsLoadingGuardianRecoveries] = useState(false)
+    const [guardianRecoveriesError, setGuardianRecoveriesError] = useState<string | null>(null)
 
     // User recovery progress state
     const [userRecoveryId, setUserRecoveryId] = useState("")
@@ -222,11 +222,11 @@ export default function DashboardPage() {
                         if (!prev) return null
                         const approvedCount = prev.guardians.filter(g => g.approved).length
                         let newPhase: RecoveryPhase = prev.currentPhase
-                        
+
                         if (result.data?.status === "success" && approvedCount >= prev.guardians.length) {
                             newPhase = "waiting"
                         }
-                        
+
                         return { ...prev, currentPhase: newPhase }
                     })
                 }
@@ -238,6 +238,31 @@ export default function DashboardPage() {
         const interval = setInterval(pollProgress, 10000)
         return () => clearInterval(interval)
     }, [viewMode, userRecoveryId, recoveryProgress])
+
+    // Auto-fetch recoveries for guardian when wallet connects and in guardian view
+    useEffect(() => {
+        if (!isConnected || !publicKey || viewMode !== "guardian") return
+
+        const fetchGuardianRecoveries = async () => {
+            setIsLoadingGuardianRecoveries(true)
+            setGuardianRecoveriesError(null)
+
+            try {
+                const result = await getRecoveriesForGuardian(publicKey)
+                if (result.success && result.data) {
+                    setGuardianRecoveries(result.data.recoveries)
+                } else {
+                    setGuardianRecoveriesError(result.error || 'Failed to fetch recoveries')
+                }
+            } catch (error) {
+                setGuardianRecoveriesError('Failed to fetch recoveries')
+            } finally {
+                setIsLoadingGuardianRecoveries(false)
+            }
+        }
+
+        fetchGuardianRecoveries()
+    }, [isConnected, publicKey, viewMode])
 
     const handleConnectWallet = async () => {
         setIsConnecting(true)
@@ -276,18 +301,19 @@ export default function DashboardPage() {
         }
     }
 
-    const handleApproveRecovery = async () => {
-        if (!recoveryId.trim()) {
-            setApproveError("Please enter a Recovery ID")
+    const handleApproveRecovery = async (recoveryIdToApprove: string) => {
+        if (!recoveryIdToApprove.trim()) {
+            setApproveError("Invalid Recovery ID")
             return
         }
 
         setIsApproving(true)
+        setApprovingRecoveryId(recoveryIdToApprove)
         setApproveError(null)
         setApproveSuccess(false)
 
         try {
-            const approveResult = await approveRecovery(publicKey, recoveryId.trim())
+            const approveResult = await approveRecovery(publicKey, recoveryIdToApprove)
 
             if (!approveResult.success || !approveResult.data?.deployJson) {
                 throw new Error(approveResult.error || "Failed to build approval deploy")
@@ -344,12 +370,20 @@ export default function DashboardPage() {
 
             setDeployHash(submitResult.data?.deployHash || null)
             setApproveSuccess(true)
+            setRecoveryId(recoveryIdToApprove)
+
+            // Refresh guardian recoveries list
+            const result = await getRecoveriesForGuardian(publicKey)
+            if (result.success && result.data) {
+                setGuardianRecoveries(result.data.recoveries)
+            }
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Failed to approve recovery"
             setApproveError(errorMessage)
         } finally {
             setIsApproving(false)
+            setApprovingRecoveryId(null)
         }
     }
 
@@ -364,27 +398,27 @@ export default function DashboardPage() {
 
         try {
             const result = await getDeployStatus(userRecoveryId.trim())
-            
+
             // Mock guardian data - in production this would come from the backend
             const mockGuardians: GuardianStatus[] = [
-                { 
-                    publicKey: "01a2b3c4d5e6f7890123456789abcdef01a2b3c4d5e6f7890123456789abcdef01", 
+                {
+                    publicKey: "01a2b3c4d5e6f7890123456789abcdef01a2b3c4d5e6f7890123456789abcdef01",
                     approved: result.success && result.data?.status === "success",
                     approvedAt: result.success ? new Date().toISOString() : undefined
                 },
-                { 
-                    publicKey: "02b3c4d5e6f7890123456789abcdef01a2b3c4d5e6f7890123456789abcdef0102", 
-                    approved: false 
+                {
+                    publicKey: "02b3c4d5e6f7890123456789abcdef01a2b3c4d5e6f7890123456789abcdef0102",
+                    approved: false
                 },
-                { 
-                    publicKey: "03c4d5e6f7890123456789abcdef01a2b3c4d5e6f7890123456789abcdef010203", 
-                    approved: false 
+                {
+                    publicKey: "03c4d5e6f7890123456789abcdef01a2b3c4d5e6f7890123456789abcdef010203",
+                    approved: false
                 },
             ]
 
             const approvedCount = mockGuardians.filter(g => g.approved).length
             let currentPhase: RecoveryPhase = "initiated"
-            
+
             if (result.success && result.data?.status === "success") {
                 currentPhase = approvedCount >= mockGuardians.length ? "waiting" : "approvals"
             } else if (result.success) {
@@ -417,7 +451,7 @@ export default function DashboardPage() {
             {/* Navigation */}
             <nav className="relative z-10 border-b border-border/30 px-6 md:px-28 py-6">
                 <div className="flex items-center justify-between">
-                    <a href="/" className="font-[var(--font-bebas)] text-2xl tracking-tight hover:text-accent transition-colors">
+                    <a href="/" className="font-[(--font-bebas)] text-2xl tracking-tight hover:text-accent transition-colors">
                         SENTINELX
                     </a>
                     <div className="flex items-center gap-6">
@@ -446,11 +480,11 @@ export default function DashboardPage() {
                     {/* Header */}
                     <div className="mb-12">
                         <span className="font-mono text-xs uppercase tracking-[0.3em] text-accent">Dashboard</span>
-                        <h1 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">
+                        <h1 className="mt-4 font-[(--font-bebas)] text-5xl md:text-7xl tracking-tight">
                             {viewMode === "user" ? "RECOVERY STATUS" : "APPROVALS"}
                         </h1>
                         <p className="mt-6 max-w-2xl font-mono text-sm text-muted-foreground leading-relaxed">
-                            {viewMode === "user" 
+                            {viewMode === "user"
                                 ? "Track the progress of your account recovery. Monitor guardian approvals and recovery status."
                                 : "As a protector, you can approve recovery requests here. Each approval adds to the threshold."}
                         </p>
@@ -460,21 +494,19 @@ export default function DashboardPage() {
                     <div className="mb-12 border border-border/30 p-4 inline-flex gap-2">
                         <button
                             onClick={() => setViewMode("user")}
-                            className={`px-6 py-3 font-mono text-xs uppercase tracking-widest transition-all duration-200 ${
-                                viewMode === "user" 
-                                    ? "bg-accent text-background" 
-                                    : "text-muted-foreground hover:text-foreground"
-                            }`}
+                            className={`px-6 py-3 font-mono text-xs uppercase tracking-widest transition-all duration-200 ${viewMode === "user"
+                                ? "bg-accent text-background"
+                                : "text-muted-foreground hover:text-foreground"
+                                }`}
                         >
                             I'm Recovering
                         </button>
                         <button
                             onClick={() => setViewMode("guardian")}
-                            className={`px-6 py-3 font-mono text-xs uppercase tracking-widest transition-all duration-200 ${
-                                viewMode === "guardian" 
-                                    ? "bg-accent text-background" 
-                                    : "text-muted-foreground hover:text-foreground"
-                            }`}
+                            className={`px-6 py-3 font-mono text-xs uppercase tracking-widest transition-all duration-200 ${viewMode === "guardian"
+                                ? "bg-accent text-background"
+                                : "text-muted-foreground hover:text-foreground"
+                                }`}
                         >
                             I'm a Guardian
                         </button>
@@ -519,7 +551,7 @@ export default function DashboardPage() {
                                             className="group inline-flex items-center gap-3 border border-foreground/20 px-6 py-3 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             <ScrambleTextOnHover text={isConnecting ? "Connecting..." : "Connect Wallet"} as="span" duration={0.6} />
-                                            {!isConnecting && <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />}
+                                            {!isConnecting && <BitmapChevron className="transition-transform duration-400 ease-in-out group-hover:rotate-45" />}
                                         </button>
                                     )}
                                 </div>
@@ -572,7 +604,7 @@ export default function DashboardPage() {
                                                 duration={0.6}
                                             />
                                             {!isLoadingProgress && (
-                                                <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />
+                                                <BitmapChevron className="transition-transform duration-400 ease-in-out group-hover:rotate-45" />
                                             )}
                                         </button>
                                     </div>
@@ -599,7 +631,7 @@ export default function DashboardPage() {
                                                         key={phase.id}
                                                         phase={phase}
                                                         isActive={phase.id === recoveryProgress.currentPhase}
-                                                        isComplete={getPhaseIndex(phase.id) < getPhaseIndex(recoveryProgress.currentPhase) || 
+                                                        isComplete={getPhaseIndex(phase.id) < getPhaseIndex(recoveryProgress.currentPhase) ||
                                                             (phase.id === "finalized" && recoveryProgress.currentPhase === "finalized")}
                                                         isLast={index === phases.length - 1}
                                                     />
@@ -633,9 +665,8 @@ export default function DashboardPage() {
                                                 <h3 className="font-mono text-xs uppercase tracking-widest text-foreground">
                                                     Guardian Approvals
                                                 </h3>
-                                                <span className={`font-mono text-xs uppercase tracking-widest ${
-                                                    approvedCount === totalGuardians ? "text-green-500" : "text-accent"
-                                                }`}>
+                                                <span className={`font-mono text-xs uppercase tracking-widest ${approvedCount === totalGuardians ? "text-green-500" : "text-accent"
+                                                    }`}>
                                                     {approvedCount} / {totalGuardians} Approved
                                                 </span>
                                             </div>
@@ -643,10 +674,9 @@ export default function DashboardPage() {
                                             {/* Progress Bar */}
                                             <div className="mb-6">
                                                 <div className="h-2 bg-border/30 overflow-hidden">
-                                                    <div 
-                                                        className={`h-full transition-all duration-500 ${
-                                                            approvedCount === totalGuardians ? "bg-green-500" : "bg-accent"
-                                                        }`}
+                                                    <div
+                                                        className={`h-full transition-all duration-500 ${approvedCount === totalGuardians ? "bg-green-500" : "bg-accent"
+                                                            }`}
                                                         style={{ width: `${(approvedCount / totalGuardians) * 100}%` }}
                                                     />
                                                 </div>
@@ -655,10 +685,10 @@ export default function DashboardPage() {
                                             {/* Guardian Cards */}
                                             <div className="space-y-3">
                                                 {recoveryProgress.guardians.map((guardian, index) => (
-                                                    <GuardianApprovalCard 
-                                                        key={guardian.publicKey} 
-                                                        guardian={guardian} 
-                                                        index={index} 
+                                                    <GuardianApprovalCard
+                                                        key={guardian.publicKey}
+                                                        guardian={guardian}
+                                                        index={index}
                                                     />
                                                 ))}
                                             </div>
@@ -747,59 +777,156 @@ export default function DashboardPage() {
                         {viewMode === "guardian" && isConnected && (
                             <>
                                 <div className="border border-border/30 p-6 md:p-8">
-                                    <h3 className="font-mono text-xs uppercase tracking-widest text-foreground mb-8">
-                                        Approve Recovery Request
-                                    </h3>
-                                    <div className="space-y-2">
-                                        <label className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                                            Recovery ID / Deploy Hash
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={recoveryId}
-                                            onChange={(e) => setRecoveryId(e.target.value)}
-                                            placeholder="Enter the recovery ID..."
-                                            className="w-full bg-transparent border border-border/30 px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:outline-none transition-colors"
-                                        />
-                                        <p className="font-mono text-xs text-muted-foreground">
-                                            Enter the recovery ID shared by the person who initiated recovery
-                                        </p>
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="font-mono text-xs uppercase tracking-widest text-foreground">
+                                            Pending Recovery Requests
+                                        </h3>
+                                        {isLoadingGuardianRecoveries && (
+                                            <span className="font-mono text-xs text-muted-foreground">Loading...</span>
+                                        )}
                                     </div>
 
-                                    <div className="mt-8 pt-8 border-t border-border/30">
-                                        {approveError && (
-                                            <div className="mb-6 p-4 border border-red-500/30 bg-red-500/5">
-                                                <p className="font-mono text-xs text-red-500">{approveError}</p>
+                                    {guardianRecoveriesError && (
+                                        <div className="mb-6 p-4 border border-red-500/30 bg-red-500/5">
+                                            <p className="font-mono text-xs text-red-500">{guardianRecoveriesError}</p>
+                                        </div>
+                                    )}
+
+                                    {approveError && (
+                                        <div className="mb-6 p-4 border border-red-500/30 bg-red-500/5">
+                                            <p className="font-mono text-xs text-red-500">{approveError}</p>
+                                        </div>
+                                    )}
+
+                                    {approveSuccess && deployHash && (
+                                        <div className="mb-6 p-4 border border-green-500/30 bg-green-500/5">
+                                            <p className="font-mono text-xs text-green-500 mb-2">✓ Recovery {recoveryId} approved successfully!</p>
+                                            <p className="font-mono text-[10px] text-muted-foreground break-all">
+                                                Deploy Hash: {deployHash}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {!isLoadingGuardianRecoveries && guardianRecoveries.length === 0 ? (
+                                        <div className="py-12 text-center">
+                                            <div className="w-16 h-16 mx-auto rounded-full border-2 border-dashed border-muted-foreground/30 mb-4 flex items-center justify-center">
+                                                <span className="text-muted-foreground/50 text-3xl">✓</span>
                                             </div>
-                                        )}
-                                        {approveSuccess && deployHash && (
-                                            <div className="mb-6 p-4 border border-green-500/30 bg-green-500/5">
-                                                <p className="font-mono text-xs text-green-500 mb-2">✓ Recovery approved successfully!</p>
-                                                <p className="font-mono text-[10px] text-muted-foreground break-all">
-                                                    Deploy Hash: {deployHash}
-                                                </p>
-                                            </div>
-                                        )}
-                                        <button
-                                            onClick={handleApproveRecovery}
-                                            disabled={!recoveryId.trim() || isApproving || approveSuccess}
-                                            className="group inline-flex items-center gap-3 border border-foreground/20 px-8 py-4 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            <ScrambleTextOnHover
-                                                text={isApproving ? "Signing..." : approveSuccess ? "Approved ✓" : "Approve Recovery"}
-                                                as="span"
-                                                duration={0.6}
-                                            />
-                                            {!isApproving && !approveSuccess && (
-                                                <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />
-                                            )}
-                                        </button>
-                                        <p className="mt-4 font-mono text-xs text-muted-foreground">
-                                            {isApproving ? "Please sign the transaction in Casper Wallet..." 
-                                                : approveSuccess ? "Your approval has been submitted" 
-                                                : "Casper Wallet will pop up for signature"}
-                                        </p>
-                                    </div>
+                                            <p className="font-mono text-sm text-muted-foreground">
+                                                No pending recovery requests
+                                            </p>
+                                            <p className="font-mono text-xs text-muted-foreground/60 mt-2">
+                                                You will see recoveries here when someone you protect initiates recovery
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {guardianRecoveries.map((recovery) => (
+                                                <div
+                                                    key={recovery.recoveryId}
+                                                    className={`border p-5 transition-all ${recovery.alreadyApproved
+                                                        ? 'border-green-500/30 bg-green-500/5'
+                                                        : recovery.isApproved
+                                                            ? 'border-accent/30 bg-accent/5'
+                                                            : 'border-border/30 bg-background'
+                                                        }`}
+                                                >
+                                                    {/* Header */}
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-3 h-3 rounded-full ${recovery.alreadyApproved
+                                                                ? 'bg-green-500'
+                                                                : recovery.isApproved
+                                                                    ? 'bg-accent'
+                                                                    : 'bg-yellow-400 animate-pulse'
+                                                                }`} />
+                                                            <span className="font-mono text-xs uppercase tracking-widest">
+                                                                Recovery #{recovery.recoveryId}
+                                                            </span>
+                                                        </div>
+                                                        <span className={`font-mono text-xs uppercase px-2 py-1 ${recovery.alreadyApproved
+                                                            ? 'text-green-500 bg-green-500/10'
+                                                            : recovery.isApproved
+                                                                ? 'text-accent bg-accent/10'
+                                                                : 'text-yellow-400 bg-yellow-400/10'
+                                                            }`}>
+                                                            {recovery.alreadyApproved
+                                                                ? 'You Approved'
+                                                                : recovery.isApproved
+                                                                    ? 'Threshold Met'
+                                                                    : 'Needs Approval'}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Details */}
+                                                    <div className="space-y-3 mb-4">
+                                                        <div>
+                                                            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                                                                Target Account
+                                                            </span>
+                                                            <p className="font-mono text-xs text-foreground/80 break-all mt-1">
+                                                                {recovery.targetAccount}
+                                                            </p>
+                                                        </div>
+                                                        {recovery.newKey && (
+                                                            <div>
+                                                                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                                                                    New Public Key
+                                                                </span>
+                                                                <p className="font-mono text-xs text-foreground/80 break-all mt-1">
+                                                                    {recovery.newKey}
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Approval Progress */}
+                                                    <div className="mb-4">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                                                                Approval Progress
+                                                            </span>
+                                                            <span className={`font-mono text-xs ${recovery.approvalCount >= recovery.threshold
+                                                                ? 'text-green-500'
+                                                                : 'text-foreground'
+                                                                }`}>
+                                                                {recovery.approvalCount} / {recovery.threshold}
+                                                            </span>
+                                                        </div>
+                                                        <div className="h-2 bg-border/30 overflow-hidden">
+                                                            <div
+                                                                className={`h-full transition-all duration-500 ${recovery.approvalCount >= recovery.threshold
+                                                                    ? 'bg-green-500'
+                                                                    : 'bg-accent'
+                                                                    }`}
+                                                                style={{
+                                                                    width: `${Math.min((recovery.approvalCount / recovery.threshold) * 100, 100)}%`
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Approve Button */}
+                                                    {!recovery.alreadyApproved && (
+                                                        <button
+                                                            onClick={() => handleApproveRecovery(recovery.recoveryId)}
+                                                            disabled={isApproving}
+                                                            className="w-full group inline-flex items-center justify-center gap-3 border border-accent px-6 py-3 font-mono text-xs uppercase tracking-widest text-accent hover:bg-accent hover:text-background transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            <ScrambleTextOnHover
+                                                                text={approvingRecoveryId === recovery.recoveryId ? "Signing..." : "Approve This Recovery"}
+                                                                as="span"
+                                                                duration={0.6}
+                                                            />
+                                                            {approvingRecoveryId !== recovery.recoveryId && (
+                                                                <BitmapChevron className="transition-transform duration-300 ease-in-out group-hover:rotate-45" />
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Guardian Responsibilities */}

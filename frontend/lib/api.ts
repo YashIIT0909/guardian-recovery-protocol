@@ -242,6 +242,30 @@ export const getRecoveryById = async (
 };
 
 /**
+ * Get all recoveries where the public key is a guardian (NO TRANSACTION - direct state query)
+ */
+export interface GuardianRecovery {
+    recoveryId: string;
+    targetAccount: string;
+    newKey: string | null;
+    approvalCount: number;
+    threshold: number;
+    isApproved: boolean;
+    alreadyApproved: boolean;
+}
+
+export const getRecoveriesForGuardian = async (
+    publicKey: string
+): Promise<ApiResponse<{ recoveries: GuardianRecovery[]; count: number }>> => {
+    try {
+        const response = await apiClient.get(`/recovery/for-guardian/${publicKey}`);
+        return response.data;
+    } catch (error) {
+        return handleApiError(error);
+    }
+};
+
+/**
  * @deprecated Use checkHasGuardians instead - this version requires a transaction
  * Check if account has protectors (OLD - requires transaction)
  */
