@@ -14,7 +14,8 @@ import {
     isCasperWalletInstalled,
     getProvider
 } from "@/lib/casper-wallet"
-import { approveRecovery, submitDeploy, getDeployStatus, getRecoveriesForGuardian, GuardianRecovery } from "@/lib/api"
+import { approveRecovery, submitDeploy, getDeployStatus, getRecoveriesForGuardian, GuardianRecovery, checkUserEmail, submitUserEmail } from "@/lib/api"
+import { EmailSubmissionBanner } from "@/components/email-submission-banner"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
 
@@ -172,6 +173,11 @@ export default function DashboardPage() {
     const [isLoadingProgress, setIsLoadingProgress] = useState(false)
     const [progressError, setProgressError] = useState<string | null>(null)
 
+    // Email notification state
+    const [hasEmail, setHasEmail] = useState<boolean | null>(null)
+    const [showEmailBanner, setShowEmailBanner] = useState(false)
+    const [isCheckingEmail, setIsCheckingEmail] = useState(false)
+
     useEffect(() => {
         const checkExistingConnection = async () => {
             try {
@@ -263,6 +269,41 @@ export default function DashboardPage() {
 
         fetchGuardianRecoveries()
     }, [isConnected, publicKey, viewMode])
+
+    // Check if user has submitted email when wallet connects
+    useEffect(() => {
+        if (!isConnected || !publicKey) {
+            setHasEmail(null)
+            setShowEmailBanner(false)
+            return
+        }
+
+        const checkEmail = async () => {
+            setIsCheckingEmail(true)
+            try {
+                const result = await checkUserEmail(publicKey)
+                if (result.success && result.data) {
+                    setHasEmail(result.data.hasEmail)
+                    setShowEmailBanner(!result.data.hasEmail)
+                }
+            } catch (error) {
+                console.error('Error checking user email:', error)
+            } finally {
+                setIsCheckingEmail(false)
+            }
+        }
+
+        checkEmail()
+    }, [isConnected, publicKey])
+
+    const handleEmailSubmit = async (email: string) => {
+        const result = await submitUserEmail(publicKey, email)
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to submit email')
+        }
+        setHasEmail(true)
+        setShowEmailBanner(false)
+    }
 
     const handleConnectWallet = async () => {
         setIsConnecting(true)
@@ -562,6 +603,14 @@ export default function DashboardPage() {
                                 </div>
                             )}
                         </div>
+
+                        {/* Email Submission Banner - Show for connected users without email */}
+                        {isConnected && showEmailBanner && !isCheckingEmail && (
+                            <EmailSubmissionBanner
+                                publicKey={publicKey}
+                                onSubmit={handleEmailSubmit}
+                            />
+                        )}
 
                         {/* USER VIEW */}
                         {viewMode === "user" && (

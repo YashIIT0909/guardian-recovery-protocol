@@ -438,6 +438,41 @@ export async function getAccountStatus(publicKey: string): Promise<{
     const result = await response.json();
     return result.data;
 }
+// ==================== USER EMAIL ENDPOINTS ====================
+
+/**
+ * Check if user has submitted their email
+ */
+export const checkUserEmail = async (
+    publicKey: string
+): Promise<ApiResponse<{ hasEmail: boolean; email?: string }>> => {
+    try {
+        const response = await apiClient.get(`/user/${publicKey}/email`);
+        return response.data;
+    } catch (error) {
+        return handleApiError(error);
+    }
+};
+
+/**
+ * Submit user email for notifications
+ */
+export const submitUserEmail = async (
+    publicKey: string,
+    email: string
+): Promise<ApiResponse<{ message: string }>> => {
+    try {
+        const response = await apiClient.post('/user/email', {
+            publicKey,
+            email,
+        });
+        return response.data;
+    } catch (error) {
+        return handleApiError(error);
+    }
+};
+
+// ==================== HEALTH CHECK ====================
 /**
  * Check API health
  */

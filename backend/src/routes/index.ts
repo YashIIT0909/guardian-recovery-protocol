@@ -2,6 +2,7 @@ import { Router } from 'express';
 import recoveryRoutes from './recovery.routes';
 import sessionRoutes from './session.routes';
 import accountRoutes from './account.routes';
+import userRoutes from './user.routes';
 
 const router = Router();
 
@@ -9,6 +10,7 @@ const router = Router();
 router.use('/recovery', recoveryRoutes);
 router.use('/session', sessionRoutes);
 router.use('/account', accountRoutes);
+router.use('/user', userRoutes);
 
 // Health check
 router.get('/health', (req, res) => {
@@ -23,7 +25,7 @@ router.get('/debug/account-hash/:publicKey', (req, res) => {
         const accountHash = publicKey.toAccountHash();
         const accountHashHex = Buffer.from(accountHash).toString('hex');
         const accountHashStr = publicKey.toAccountHashStr();
-        
+
         res.json({
             success: true,
             data: {

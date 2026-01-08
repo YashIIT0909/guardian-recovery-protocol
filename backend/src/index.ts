@@ -64,6 +64,10 @@ API Endpoints:
   GET  /api/account/:pubkey         - Get account info
   GET  /api/account/:pubkey/keys    - Get associated keys
   GET  /api/account/deploy/:hash    - Get deploy status
+
+  User (Email):
+  GET  /api/user/:pubkey/email      - Check if user has email
+  POST /api/user/email              - Submit user email
 `);
 });
 
