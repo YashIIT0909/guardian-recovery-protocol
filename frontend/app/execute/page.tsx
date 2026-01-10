@@ -14,12 +14,12 @@ import {
   isCasperWalletInstalled,
   getProvider
 } from "@/lib/casper-wallet"
-import { 
-  buildAddKeyDeploy, 
-  buildRemoveKeyDeploy, 
+import {
+  buildAddKeyDeploy,
+  buildRemoveKeyDeploy,
   buildUpdateThresholdsDeploy,
-  submitDeploy, 
-  getDeployStatus 
+  submitDeploy,
+  getDeployStatus
 } from "@/lib/api"
 import { isValidCasperAddress, getAddressValidationError } from "@/lib/validation"
 import gsap from "gsap"
@@ -29,13 +29,13 @@ type ExecutionStep = "add_key" | "remove_key" | "update_thresholds" | "complete"
 export default function ExecutePage() {
   const sectionRef = useRef<HTMLElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
-  
+
   // Wallet state
   const [isConnected, setIsConnected] = useState(false)
   const [guardianKey, setGuardianKey] = useState("")
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
-  
+
   // Form state
   const [newPublicKey, setNewPublicKey] = useState("")
   const [newKeyError, setNewKeyError] = useState<string | null>(null)
@@ -261,7 +261,7 @@ export default function ExecutePage() {
     setStepStatus("idle")
     setDeployHash(null)
     setSubmitError(null)
-    
+
     if (currentStep === "add_key") setCurrentStep("remove_key")
     else if (currentStep === "remove_key") setCurrentStep("update_thresholds")
     else if (currentStep === "update_thresholds") setCurrentStep("complete")
@@ -292,7 +292,7 @@ export default function ExecutePage() {
       {/* Navigation */}
       <nav className="relative z-10 border-b border-border/30 px-6 md:px-28 py-6">
         <div className="flex items-center justify-between">
-          <a href="/" className="font-[var(--font-bebas)] text-2xl tracking-tight hover:text-accent transition-colors">
+          <a href="/" className="font-[(--font-bebas)] text-2xl tracking-tight hover:text-accent transition-colors">
             SENTINELX
           </a>
           <div className="flex items-center gap-6">
@@ -301,9 +301,6 @@ export default function ExecutePage() {
             </a>
             <a href="/recovery" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               Recovery
-            </a>
-            <a href="/approve" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
-              Approve
             </a>
             <a href="/dashboard" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               Dashboard
@@ -318,7 +315,7 @@ export default function ExecutePage() {
           {/* Header */}
           <div className="mb-16">
             <span className="font-mono text-xs uppercase tracking-[0.3em] text-accent">Phase 3 / Execution</span>
-            <h1 className="mt-4 font-[var(--font-bebas)] text-5xl md:text-7xl tracking-tight">
+            <h1 className="mt-4 font-[(--font-bebas)] text-5xl md:text-7xl tracking-tight">
               EXECUTE RECOVERY
             </h1>
             <p className="mt-6 max-w-2xl font-mono text-sm text-muted-foreground leading-relaxed">
@@ -331,11 +328,10 @@ export default function ExecutePage() {
           <div className="mb-12 flex items-center gap-4">
             {["add_key", "remove_key", "update_thresholds", "complete"].map((step, idx) => (
               <div key={step} className="flex items-center gap-4">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-mono text-xs ${
-                  currentStep === step ? "bg-accent text-background" :
-                  ["add_key", "remove_key", "update_thresholds", "complete"].indexOf(currentStep) > idx 
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-mono text-xs ${currentStep === step ? "bg-accent text-background" :
+                  ["add_key", "remove_key", "update_thresholds", "complete"].indexOf(currentStep) > idx
                     ? "bg-green-500 text-background" : "border border-border/30 text-muted-foreground"
-                }`}>
+                  }`}>
                   {["add_key", "remove_key", "update_thresholds", "complete"].indexOf(currentStep) > idx ? "✓" : idx + 1}
                 </div>
                 {idx < 3 && <div className="w-12 h-px bg-border/30" />}
@@ -369,7 +365,7 @@ export default function ExecutePage() {
                 ) : (
                   <button onClick={handleConnect} disabled={isConnecting} className="group inline-flex items-center gap-3 border border-foreground/20 px-6 py-3 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200 disabled:opacity-50">
                     <ScrambleTextOnHover text={isConnecting ? "Connecting..." : "Connect Wallet"} as="span" duration={0.6} />
-                    {!isConnecting && <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />}
+                    {!isConnecting && <BitmapChevron className="transition-transform duration-400 ease-in-out group-hover:rotate-45" />}
                   </button>
                 )}
               </div>
@@ -462,7 +458,7 @@ export default function ExecutePage() {
                       className="group inline-flex items-center gap-3 border border-foreground/20 px-8 py-4 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <ScrambleTextOnHover text={isSubmitting ? "Signing..." : "Execute Step"} as="span" duration={0.6} />
-                      {!isSubmitting && <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />}
+                      {!isSubmitting && <BitmapChevron className="transition-transform duration-400 ease-in-out group-hover:rotate-45" />}
                     </button>
                   )}
 
@@ -472,7 +468,7 @@ export default function ExecutePage() {
                       className="group inline-flex items-center gap-3 border border-green-500/50 px-8 py-4 font-mono text-xs uppercase tracking-widest text-green-500 hover:border-green-400 hover:text-green-400 transition-all duration-200"
                     >
                       <ScrambleTextOnHover text="Continue to Next Step" as="span" duration={0.6} />
-                      <BitmapChevron className="transition-transform duration-[400ms] ease-in-out group-hover:rotate-45" />
+                      <BitmapChevron className="transition-transform duration-400 ease-in-out group-hover:rotate-45" />
                     </button>
                   )}
                 </div>

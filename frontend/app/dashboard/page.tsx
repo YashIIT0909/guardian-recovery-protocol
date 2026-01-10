@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { AnimatedNoise } from "@/components/animated-noise"
 import { ScrambleTextOnHover } from "@/components/scramble-text"
 import { BitmapChevron } from "@/components/bitmap-chevron"
-import { DeployUtil } from "casper-js-sdk"
+import { DeployUtil, CLPublicKey } from "casper-js-sdk"
 import {
     connectWallet,
     disconnectWallet,
@@ -14,7 +14,18 @@ import {
     isCasperWalletInstalled,
     getProvider
 } from "@/lib/casper-wallet"
-import { approveRecovery, submitDeploy, getDeployStatus, getRecoveriesForGuardian, GuardianRecovery, checkUserEmail, submitUserEmail } from "@/lib/api"
+import {
+    approveRecovery,
+    submitDeploy,
+    getDeployStatus,
+    getRecoveriesForGuardian,
+    GuardianRecovery,
+    checkUserEmail,
+    submitUserEmail,
+    getMultisigDeploy,
+    addSignatureToDeploy,
+    sendMultisigDeploy
+} from "@/lib/api"
 import { EmailSubmissionBanner } from "@/components/email-submission-banner"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
@@ -156,14 +167,18 @@ export default function DashboardPage() {
 
     // Guardian approval state
     const [recoveryId, setRecoveryId] = useState("")
-    const [isApproving, setIsApproving] = useState(false)
-    const [approveError, setApproveError] = useState<string | null>(null)
-    const [approveSuccess, setApproveSuccess] = useState(false)
+    const [recoveryIdError, setRecoveryIdError] = useState<string | null>(null)
+    const [approvalStatus, setApprovalStatus] = useState<"idle" | "pending" | "submitted" | "confirmed" | "signing_multisig" | "saving_multisig" | "sending">("idle")
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [submitError, setSubmitError] = useState<string | null>(null)
     const [deployHash, setDeployHash] = useState<string | null>(null)
-    const [approvingRecoveryId, setApprovingRecoveryId] = useState<string | null>(null)
+    const [multisigResult, setMultisigResult] = useState<{ signatureCount: number; thresholdMet: boolean } | null>(null)
+    const [selectedRecovery, setSelectedRecovery] = useState<GuardianRecovery | null>(null)
 
     // Guardian recoveries auto-fetched
     const [guardianRecoveries, setGuardianRecoveries] = useState<GuardianRecovery[]>([])
+    const [pendingRecoveries, setPendingRecoveries] = useState<GuardianRecovery[]>([])
+    const [approvedRecoveries, setApprovedRecoveries] = useState<GuardianRecovery[]>([])
     const [isLoadingGuardianRecoveries, setIsLoadingGuardianRecoveries] = useState(false)
     const [guardianRecoveriesError, setGuardianRecoveriesError] = useState<string | null>(null)
 
@@ -256,7 +271,10 @@ export default function DashboardPage() {
             try {
                 const result = await getRecoveriesForGuardian(publicKey)
                 if (result.success && result.data) {
-                    setGuardianRecoveries(result.data.recoveries)
+                    const recoveries = result.data.recoveries
+                    setGuardianRecoveries(recoveries)
+                    setPendingRecoveries(recoveries.filter(r => !r.alreadyApproved && !r.isApproved))
+                    setApprovedRecoveries(recoveries.filter(r => r.alreadyApproved))
                 } else {
                     setGuardianRecoveriesError(result.error || 'Failed to fetch recoveries')
                 }
@@ -268,7 +286,33 @@ export default function DashboardPage() {
         }
 
         fetchGuardianRecoveries()
+        const interval = setInterval(fetchGuardianRecoveries, 15000)
+        return () => clearInterval(interval)
     }, [isConnected, publicKey, viewMode])
+
+    // Poll for deploy status for approval
+    useEffect(() => {
+        if (!deployHash || approvalStatus === "confirmed") return
+
+        const pollStatus = async () => {
+            try {
+                const result = await getDeployStatus(deployHash)
+                if (result.success && result.data) {
+                    if (result.data.status === "success") {
+                        setApprovalStatus("confirmed")
+                    } else if (result.data.status === "failed") {
+                        setSubmitError("Approval deploy failed on-chain")
+                        setApprovalStatus("idle")
+                    }
+                }
+            } catch (error) {
+                console.error("Error polling deploy status:", error)
+            }
+        }
+
+        const interval = setInterval(pollStatus, 5000)
+        return () => clearInterval(interval)
+    }, [deployHash, approvalStatus])
 
     // Check if user has submitted email when wallet connects
     useEffect(() => {
@@ -342,33 +386,133 @@ export default function DashboardPage() {
         }
     }
 
-    const handleApproveRecovery = async (recoveryIdToApprove: string) => {
-        if (!recoveryIdToApprove.trim()) {
-            setApproveError("Invalid Recovery ID")
+    const validateRecoveryId = (value: string): string | null => {
+        if (!value.trim()) return null
+        if (!/^\d+$/.test(value.trim())) {
+            return "Recovery ID must be a positive number"
+        }
+        return null
+    }
+
+    const handleApproveRecovery = async (recovery?: GuardianRecovery) => {
+        const targetRecoveryId = recovery?.recoveryId || recoveryId.trim()
+
+        if (!targetRecoveryId) {
+            setSubmitError("Please enter a recovery ID or select a pending recovery")
             return
         }
 
-        setIsApproving(true)
-        setApprovingRecoveryId(recoveryIdToApprove)
-        setApproveError(null)
-        setApproveSuccess(false)
+        if (!recovery) {
+            const validationError = validateRecoveryId(targetRecoveryId)
+            if (validationError) {
+                setSubmitError(validationError)
+                return
+            }
+        }
+
+        setIsSubmitting(true)
+        setSubmitError(null)
+        setApprovalStatus("pending")
+        setSelectedRecovery(recovery || null)
+        setMultisigResult(null)
 
         try {
-            const approveResult = await approveRecovery(publicKey, recoveryIdToApprove)
-
-            if (!approveResult.success || !approveResult.data?.deployJson) {
-                throw new Error(approveResult.error || "Failed to build approval deploy")
-            }
-
             const provider = getProvider()
             if (!provider) {
                 throw new Error("Casper Wallet not available")
             }
 
-            // Sign the deploy with Casper Wallet
+            const pubKey = CLPublicKey.fromHex(publicKey)
+            const algorithmTag = pubKey.isEd25519() ? '01' : '02'
+
+            // ============================================================================
+            // STEP 1: Fetch and Sign Multi-Sig Deploy (Off-Chain)
+            // ============================================================================
+            console.log("Step 1: Fetching multi-sig deploy for recovery:", targetRecoveryId)
+            setApprovalStatus("signing_multisig")
+
+            // Retry logic for fetching multi-sig deploy
+            let multisigData = await getMultisigDeploy(targetRecoveryId)
+            let retries = 0
+            while (!multisigData.success && retries < 3) {
+                console.log(`Retry ${retries + 1} fetching multi-sig deploy...`)
+                await new Promise(resolve => setTimeout(resolve, 2000))
+                multisigData = await getMultisigDeploy(targetRecoveryId)
+                retries++
+            }
+
+            console.log("Multi-sig deploy data:", multisigData)
+
+            if (!multisigData.success) {
+                throw new Error(`Multi-sig deploy not found. Please ensure recovery was initiated properly. Error: ${multisigData.error || 'Not found'}`)
+            }
+
+            if (!multisigData.data?.deployJson) {
+                throw new Error("Multi-sig deploy exists but has no deploy data. This recovery may need to be re-initiated.")
+            }
+
+            const multisigDeployJson = multisigData.data.deployJson
+            // Ensure it's a string for the wallet
+            const multisigDeployString = typeof multisigDeployJson === 'string'
+                ? multisigDeployJson
+                : JSON.stringify(multisigDeployJson)
+
+            console.log("Signing multi-sig deploy...")
+            const multisigResponse = await provider.sign(multisigDeployString, publicKey)
+
+            if (multisigResponse.cancelled) {
+                throw new Error("Multi-sig deploy signing cancelled by user")
+            }
+
+            if (!multisigResponse.signatureHex) {
+                throw new Error("Failed to get signature for multi-sig deploy")
+            }
+
+            // Reconstruct and add signature to multi-sig deploy
+            const multisigOriginalJson = typeof multisigDeployJson === 'string'
+                ? JSON.parse(multisigDeployJson)
+                : multisigDeployJson
+            const multisigDeploy = DeployUtil.deployFromJson(multisigOriginalJson).unwrap()
+
+            const multisigApproval = new DeployUtil.Approval()
+            multisigApproval.signer = pubKey.toHex()
+            multisigApproval.signature = algorithmTag + multisigResponse.signatureHex
+            multisigDeploy.approvals.push(multisigApproval)
+
+            const signedMultisigDeploy = DeployUtil.deployToJson(multisigDeploy)
+
+            // ============================================================================
+            // STEP 2: Save Signed Multi-Sig Deploy
+            // ============================================================================
+            console.log("Step 2: Saving signed multi-sig deploy...")
+            setApprovalStatus("saving_multisig")
+
+            const addSigResult = await addSignatureToDeploy(targetRecoveryId, signedMultisigDeploy)
+
+            if (!addSigResult.success) {
+                throw new Error(addSigResult.error || "Failed to save multi-sig signature")
+            }
+
+            setMultisigResult(addSigResult.data || null)
+            console.log(`Multi-sig signature saved. Count: ${addSigResult.data?.signatureCount}, Threshold met: ${addSigResult.data?.thresholdMet}`)
+
+            // ============================================================================
+            // STEP 3: On-Chain Contract Approval
+            // ============================================================================
+            console.log("Step 3: Getting approval deploy for recovery:", targetRecoveryId)
+            setApprovalStatus("pending")
+
+            const approveResult = await approveRecovery(publicKey, targetRecoveryId)
+
+            if (!approveResult.success || !approveResult.data?.deployJson) {
+                throw new Error(approveResult.error || "Failed to build approval deploy")
+            }
+
+            // Sign the contract approval deploy
             const deployJson = approveResult.data.deployJson
             const deployString = typeof deployJson === 'string' ? deployJson : JSON.stringify(deployJson)
 
+            console.log("Signing contract approval deploy...")
             const response = await provider.sign(deployString, publicKey)
 
             if (response.cancelled) {
@@ -380,51 +524,79 @@ export default function DashboardPage() {
                 throw new Error("Failed to get signature from wallet")
             }
 
-            // Reconstruct the deploy from the JSON
+            // Reconstruct and sign the deploy
             const originalDeployJson = typeof deployJson === 'string' ? JSON.parse(deployJson) : deployJson
             const deploy = DeployUtil.deployFromJson(originalDeployJson).unwrap()
 
-            // Get the public key to determine the signature algorithm
-            const { CLPublicKey } = await import("casper-js-sdk")
-            const pubKey = CLPublicKey.fromHex(publicKey)
-
-            // Casper Wallet returns the signature without the algorithm tag
-            // We need to prepend the tag: 01 for Ed25519, 02 for Secp256k1
-            const algorithmTag = pubKey.isEd25519() ? '01' : '02'
-            const fullSignature = algorithmTag + signatureHex
-
-            // Create a proper approval with hex strings
             const approval = new DeployUtil.Approval()
             approval.signer = pubKey.toHex()
-            approval.signature = fullSignature
-
-            // Add the approval to the deploy
+            approval.signature = algorithmTag + signatureHex
             deploy.approvals.push(approval)
 
-            // Submit signed deploy to the network
+            // Submit contract approval deploy
             const signedDeployJson = DeployUtil.deployToJson(deploy)
             const submitResult = await submitDeploy(JSON.stringify(signedDeployJson))
 
             if (!submitResult.success) {
-                throw new Error(submitResult.error || "Failed to submit deploy")
+                throw new Error(submitResult.error || "Failed to submit approval deploy")
             }
 
             setDeployHash(submitResult.data?.deployHash || null)
-            setApproveSuccess(true)
-            setRecoveryId(recoveryIdToApprove)
+            setApprovalStatus("submitted")
 
-            // Refresh guardian recoveries list
+            // Step 4: If threshold is met, offer to send the deploy
+            if (addSigResult.data?.thresholdMet) {
+                console.log("Threshold met! Ready to send final deploy.")
+            }
+
+            // Refresh recoveries
             const result = await getRecoveriesForGuardian(publicKey)
             if (result.success && result.data) {
-                setGuardianRecoveries(result.data.recoveries)
+                const recoveries = result.data.recoveries
+                setGuardianRecoveries(recoveries)
+                setPendingRecoveries(recoveries.filter(r => !r.alreadyApproved && !r.isApproved))
+                setApprovedRecoveries(recoveries.filter(r => r.alreadyApproved))
             }
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Failed to approve recovery"
-            setApproveError(errorMessage)
+            setSubmitError(errorMessage)
+            if (approvalStatus !== "submitted" && approvalStatus !== "confirmed") {
+                setApprovalStatus("idle")
+            } else {
+                console.error("Failed during approval process:", error)
+            }
         } finally {
-            setIsApproving(false)
-            setApprovingRecoveryId(null)
+            setIsSubmitting(false)
+        }
+    }
+
+    const handleSendFinalDeploy = async () => {
+        const targetRecoveryId = selectedRecovery?.recoveryId || recoveryId.trim()
+        if (!targetRecoveryId) return
+
+        setIsSubmitting(true)
+        setSubmitError(null)
+        setApprovalStatus("sending")
+
+        try {
+            console.log("Sending final multi-sig deploy for recovery:", targetRecoveryId)
+            const sendResult = await sendMultisigDeploy(targetRecoveryId)
+
+            if (!sendResult.success) {
+                throw new Error(sendResult.error || "Failed to send multi-sig deploy")
+            }
+
+            console.log("Multi-sig deploy sent! Hash:", sendResult.data?.deployHash)
+            setDeployHash(sendResult.data?.deployHash || null)
+            alert("Recovery multi-sig deploy sent to network successfully!")
+
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Failed to send final deploy"
+            setSubmitError(errorMessage)
+        } finally {
+            setIsSubmitting(false)
+            setApprovalStatus("confirmed")
         }
     }
 
@@ -505,11 +677,11 @@ export default function DashboardPage() {
                         <a href="/recovery" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
                             Recovery
                         </a>
-                        <a href="/approve" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
-                            Approve
-                        </a>
                         <a href="/execute" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
                             Execute
+                        </a>
+                        <a href="/dashboard" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
+                            Dashboard
                         </a>
                     </div>
                 </div>
@@ -798,24 +970,20 @@ export default function DashboardPage() {
                                 {/* Info Panel */}
                                 <div className="border border-border/30 p-6 md:p-8">
                                     <h3 className="font-mono text-xs uppercase tracking-widest text-foreground mb-4">
-                                        What to Expect
+                                        About Recovery Tracking
                                     </h3>
                                     <ul className="space-y-3">
-                                        <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
-                                            <span className="text-accent">•</span>
-                                            <span>Share your Recovery ID with your guardians so they can approve</span>
+                                        <li className="font-mono text-sm text-foreground/80 flex items-start gap-3">
+                                            <span className="text-accent">01</span>
+                                            <span>Monitor the status of your recovery request in real-time</span>
                                         </li>
-                                        <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
-                                            <span className="text-accent">•</span>
-                                            <span>All guardians must approve for recovery to proceed</span>
+                                        <li className="font-mono text-sm text-foreground/80 flex items-start gap-3">
+                                            <span className="text-accent">02</span>
+                                            <span>See which guardians have approved and who is still pending</span>
                                         </li>
-                                        <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
-                                            <span className="text-accent">•</span>
-                                            <span>After threshold is met, a 30-day waiting period begins</span>
-                                        </li>
-                                        <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
-                                            <span className="text-accent">•</span>
-                                            <span>Recovery will be finalized automatically after the waiting period</span>
+                                        <li className="font-mono text-sm text-foreground/80 flex items-start gap-3">
+                                            <span className="text-accent">03</span>
+                                            <span>Track the security waiting period once approvals are complete</span>
                                         </li>
                                     </ul>
                                 </div>
@@ -823,232 +991,280 @@ export default function DashboardPage() {
                         )}
 
                         {/* GUARDIAN VIEW */}
-                        {viewMode === "guardian" && isConnected && (
-                            <>
-                                <div className="border border-border/30 p-6 md:p-8">
-                                    <div className="flex items-center justify-between mb-6">
-                                        <h3 className="font-mono text-xs uppercase tracking-widest text-foreground">
-                                            Pending Recovery Requests
-                                        </h3>
-                                        {isLoadingGuardianRecoveries && (
-                                            <span className="font-mono text-xs text-muted-foreground">Loading...</span>
-                                        )}
+                        {viewMode === "guardian" && isConnected && approvalStatus === "idle" && (
+                            <div className="border border-border/30 p-6 md:p-8">
+                                <h3 className="font-mono text-xs uppercase tracking-widest text-foreground mb-8">
+                                    Recovery Approval
+                                </h3>
+
+                                {/* Pending Recoveries Section */}
+                                {isLoadingGuardianRecoveries ? (
+                                    <div className="flex items-center gap-3 mb-8 p-4 border border-border/20 bg-background/50">
+                                        <div className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+                                        <span className="font-mono text-xs text-muted-foreground">Loading pending recoveries...</span>
                                     </div>
-
-                                    {guardianRecoveriesError && (
-                                        <div className="mb-6 p-4 border border-red-500/30 bg-red-500/5">
-                                            <p className="font-mono text-xs text-red-500">{guardianRecoveriesError}</p>
-                                        </div>
-                                    )}
-
-                                    {approveError && (
-                                        <div className="mb-6 p-4 border border-red-500/30 bg-red-500/5">
-                                            <p className="font-mono text-xs text-red-500">{approveError}</p>
-                                        </div>
-                                    )}
-
-                                    {approveSuccess && deployHash && (
-                                        <div className="mb-6 p-4 border border-green-500/30 bg-green-500/5">
-                                            <p className="font-mono text-xs text-green-500 mb-2">✓ Recovery {recoveryId} approved successfully!</p>
-                                            <p className="font-mono text-[10px] text-muted-foreground break-all">
-                                                Deploy Hash: {deployHash}
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {!isLoadingGuardianRecoveries && guardianRecoveries.length === 0 ? (
-                                        <div className="py-12 text-center">
-                                            <div className="w-16 h-16 mx-auto rounded-full border-2 border-dashed border-muted-foreground/30 mb-4 flex items-center justify-center">
-                                                <span className="text-muted-foreground/50 text-3xl">✓</span>
-                                            </div>
-                                            <p className="font-mono text-sm text-muted-foreground">
-                                                No pending recovery requests
-                                            </p>
-                                            <p className="font-mono text-xs text-muted-foreground/60 mt-2">
-                                                You will see recoveries here when someone you protect initiates recovery
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-4">
-                                            {guardianRecoveries.map((recovery) => (
+                                ) : pendingRecoveries.length > 0 ? (
+                                    <div className="mb-8 space-y-4">
+                                        <h4 className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                                            Pending Recoveries ({pendingRecoveries.length})
+                                        </h4>
+                                        <div className="space-y-3">
+                                            {pendingRecoveries.map((recovery) => (
                                                 <div
                                                     key={recovery.recoveryId}
-                                                    className={`border p-5 transition-all ${recovery.alreadyApproved
-                                                        ? 'border-green-500/30 bg-green-500/5'
-                                                        : recovery.isApproved
-                                                            ? 'border-accent/30 bg-accent/5'
-                                                            : 'border-border/30 bg-background'
-                                                        }`}
+                                                    className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 border border-border/30 bg-background/30 hover:border-accent/30 transition-colors"
                                                 >
-                                                    {/* Header */}
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`w-3 h-3 rounded-full ${recovery.alreadyApproved
-                                                                ? 'bg-green-500'
-                                                                : recovery.isApproved
-                                                                    ? 'bg-accent'
-                                                                    : 'bg-yellow-400 animate-pulse'
-                                                                }`} />
-                                                            <span className="font-mono text-xs uppercase tracking-widest">
-                                                                Recovery #{recovery.recoveryId}
+                                                    <div className="space-y-2 flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-mono text-xs text-accent">ID: {recovery.recoveryId}</span>
+                                                            <span className="font-mono text-[10px] text-muted-foreground bg-accent/10 px-2 py-0.5">
+                                                                {recovery.approvalCount}/{recovery.threshold} approvals
                                                             </span>
                                                         </div>
-                                                        <span className={`font-mono text-xs uppercase px-2 py-1 ${recovery.alreadyApproved
-                                                            ? 'text-green-500 bg-green-500/10'
-                                                            : recovery.isApproved
-                                                                ? 'text-accent bg-accent/10'
-                                                                : 'text-yellow-400 bg-yellow-400/10'
-                                                            }`}>
-                                                            {recovery.alreadyApproved
-                                                                ? 'You Approved'
-                                                                : recovery.isApproved
-                                                                    ? 'Threshold Met'
-                                                                    : 'Needs Approval'}
-                                                        </span>
-                                                    </div>
-
-                                                    {/* Details */}
-                                                    <div className="space-y-3 mb-4">
-                                                        <div>
-                                                            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                                                                Target Account
-                                                            </span>
-                                                            <p className="font-mono text-xs text-foreground/80 break-all mt-1">
-                                                                {recovery.targetAccount}
-                                                            </p>
+                                                        <div className="font-mono text-[10px] text-muted-foreground truncate">
+                                                            Target: {recovery.targetAccount}
                                                         </div>
                                                         {recovery.newKey && (
-                                                            <div>
-                                                                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                                                                    New Public Key
-                                                                </span>
-                                                                <p className="font-mono text-xs text-foreground/80 break-all mt-1">
-                                                                    {recovery.newKey}
-                                                                </p>
+                                                            <div className="font-mono text-[10px] text-muted-foreground truncate">
+                                                                New Key: {recovery.newKey}
                                                             </div>
                                                         )}
                                                     </div>
-
-                                                    {/* Approval Progress */}
-                                                    <div className="mb-4">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                                                                Approval Progress
-                                                            </span>
-                                                            <span className={`font-mono text-xs ${recovery.approvalCount >= recovery.threshold
-                                                                ? 'text-green-500'
-                                                                : 'text-foreground'
-                                                                }`}>
-                                                                {recovery.approvalCount} / {recovery.threshold}
-                                                            </span>
-                                                        </div>
-                                                        <div className="h-2 bg-border/30 overflow-hidden">
-                                                            <div
-                                                                className={`h-full transition-all duration-500 ${recovery.approvalCount >= recovery.threshold
-                                                                    ? 'bg-green-500'
-                                                                    : 'bg-accent'
-                                                                    }`}
-                                                                style={{
-                                                                    width: `${Math.min((recovery.approvalCount / recovery.threshold) * 100, 100)}%`
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Approve Button */}
-                                                    {!recovery.alreadyApproved && (
-                                                        <button
-                                                            onClick={() => handleApproveRecovery(recovery.recoveryId)}
-                                                            disabled={isApproving}
-                                                            className="w-full group inline-flex items-center justify-center gap-3 border border-accent px-6 py-3 font-mono text-xs uppercase tracking-widest text-accent hover:bg-accent hover:text-background transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                        >
-                                                            <ScrambleTextOnHover
-                                                                text={approvingRecoveryId === recovery.recoveryId ? "Signing..." : "Approve This Recovery"}
-                                                                as="span"
-                                                                duration={0.6}
-                                                            />
-                                                            {approvingRecoveryId !== recovery.recoveryId && (
-                                                                <BitmapChevron className="transition-transform duration-300 ease-in-out group-hover:rotate-45" />
-                                                            )}
-                                                        </button>
-                                                    )}
+                                                    <button
+                                                        onClick={() => handleApproveRecovery(recovery)}
+                                                        disabled={isSubmitting}
+                                                        className="shrink-0 inline-flex items-center gap-2 border border-green-500/30 bg-green-500/5 px-4 py-2 font-mono text-xs uppercase tracking-widest text-green-500 hover:bg-green-500/10 hover:border-green-500/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        Approve
+                                                    </button>
                                                 </div>
                                             ))}
                                         </div>
+                                    </div>
+                                ) : (
+                                    <div className="mb-8 p-4 border border-border/20 bg-background/50">
+                                        <p className="font-mono text-xs text-muted-foreground">
+                                            No pending recoveries found for your account.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Already Approved Recoveries Section */}
+                                {approvedRecoveries.length > 0 && (
+                                    <div className="mb-8 space-y-4">
+                                        <h4 className="font-mono text-[10px] uppercase tracking-[0.3em] text-green-500">
+                                            Already Approved by You ({approvedRecoveries.length})
+                                        </h4>
+                                        <div className="space-y-3">
+                                            {approvedRecoveries.map((recovery) => (
+                                                <div
+                                                    key={recovery.recoveryId}
+                                                    className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 border border-green-500/20 bg-green-500/5"
+                                                >
+                                                    <div className="space-y-2 flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-mono text-xs text-green-500">ID: {recovery.recoveryId}</span>
+                                                            <span className="font-mono text-[10px] text-green-500 bg-green-500/10 px-2 py-0.5">
+                                                                {recovery.approvalCount}/{recovery.threshold} approvals
+                                                            </span>
+                                                            {recovery.isApproved && (
+                                                                <span className="font-mono text-[10px] text-green-500 bg-green-500/20 px-2 py-0.5">
+                                                                    Ready to Execute
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="font-mono text-[10px] text-muted-foreground truncate">
+                                                            Target: {recovery.targetAccount}
+                                                        </div>
+                                                        {recovery.newKey && (
+                                                            <div className="font-mono text-[10px] text-muted-foreground truncate">
+                                                                New Key: {recovery.newKey}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="shrink-0 inline-flex items-center gap-2 px-4 py-2 font-mono text-xs uppercase tracking-widest text-green-500">
+                                                        ✓ Approved
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Manual Recovery ID Input */}
+                                <div className="space-y-6">
+                                    <div className="border-t border-border/30 pt-6">
+                                        <h4 className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-4">
+                                            Or Enter Recovery ID Manually
+                                        </h4>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                                            Recovery ID
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={recoveryId}
+                                            onChange={(e) => {
+                                                setRecoveryId(e.target.value)
+                                                setRecoveryIdError(validateRecoveryId(e.target.value))
+                                            }}
+                                            placeholder="Enter recovery ID (e.g., 1)"
+                                            className={`w-full bg-transparent border px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:outline-none transition-colors ${recoveryIdError ? "border-red-500/50" : "border-border/30"
+                                                }`}
+                                        />
+                                        {recoveryIdError && (
+                                            <p className="font-mono text-xs text-red-500">{recoveryIdError}</p>
+                                        )}
+                                        <p className="font-mono text-xs text-muted-foreground leading-relaxed">
+                                            The recovery ID from the initiation step
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-8 pt-8 border-t border-border/30">
+                                    {submitError && (
+                                        <div className="mb-6 p-4 border border-red-500/30 bg-red-500/5">
+                                            <p className="font-mono text-xs text-red-500">{submitError}</p>
+                                        </div>
+                                    )}
+
+                                    <button
+                                        onClick={() => handleApproveRecovery()}
+                                        disabled={!recoveryId.trim() || isSubmitting || !!recoveryIdError}
+                                        className="group inline-flex items-center gap-3 border border-foreground/20 px-8 py-4 font-mono text-xs uppercase tracking-widest text-foreground hover:border-accent hover:text-accent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <ScrambleTextOnHover
+                                            text={isSubmitting ? "Signing..." : "Approve Recovery"}
+                                            as="span"
+                                            duration={0.6}
+                                        />
+                                        {!isSubmitting && (
+                                            <BitmapChevron className="transition-transform duration-400 ease-in-out group-hover:rotate-45" />
+                                        )}
+                                    </button>
+                                    <p className="mt-4 font-mono text-xs text-muted-foreground">
+                                        {isSubmitting ? "Please sign in Casper Wallet..." : "Your approval will be recorded on-chain"}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Approval Status Display */}
+                        {viewMode === "guardian" && isConnected && (approvalStatus === "submitted" || approvalStatus === "signing_multisig" || approvalStatus === "saving_multisig" || approvalStatus === "sending" || approvalStatus === "confirmed") && (
+                            <div className={`border p-6 md:p-8 ${approvalStatus === "confirmed" ? "border-green-500/30 bg-green-500/5" : "border-accent/30 bg-accent/5"
+                                }`}>
+                                <h3 className={`font-mono text-xs uppercase tracking-widest mb-4 ${approvalStatus === "confirmed" ? "text-green-500" : "text-accent"
+                                    }`}>
+                                    {approvalStatus === "confirmed" ? "Approval Complete ✓" :
+                                        approvalStatus === "submitted" ? "Contract Approval Submitted ⏳" :
+                                            approvalStatus === "signing_multisig" ? "Signing Multi-Sig Deploy 🔐" :
+                                                approvalStatus === "saving_multisig" ? "Saving Signature 💾" :
+                                                    approvalStatus === "sending" ? "Sending Final Deploy 📤" : "Processing..."}
+                                </h3>
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 gap-1">
+                                        <span className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                                            Recovery ID
+                                        </span>
+                                        <span className="font-mono text-xs text-foreground/80">
+                                            {selectedRecovery?.recoveryId || recoveryId}
+                                        </span>
+                                    </div>
+                                    {deployHash && (
+                                        <div className="grid grid-cols-1 gap-1">
+                                            <span className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                                                Deploy Hash
+                                            </span>
+                                            <span className="font-mono text-xs text-foreground/80 break-all">{deployHash}</span>
+                                        </div>
+                                    )}
+
+                                    {/* Progress Steps for multi-sig */}
+                                    {(approvalStatus === "signing_multisig" || approvalStatus === "saving_multisig") && (
+                                        <div className="pt-4 border-t border-accent/30">
+                                            <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-3">Progress</p>
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                                                    <span className="font-mono text-xs text-foreground/70">Contract approval submitted</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`w-2 h-2 rounded-full ${approvalStatus === "signing_multisig" ? "bg-accent animate-pulse" : "bg-green-500"}`} />
+                                                    <span className="font-mono text-xs text-foreground/70">Sign multi-sig deploy</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`w-2 h-2 rounded-full ${approvalStatus === "saving_multisig" ? "bg-accent animate-pulse" : "bg-muted-foreground/30"}`} />
+                                                    <span className="font-mono text-xs text-foreground/70">Save signature to database</span>
+                                                </div>
+                                            </div>
+                                            <p className="mt-4 font-mono text-xs text-muted-foreground">
+                                                {approvalStatus === "signing_multisig" ? "Please sign the multi-sig deploy in Casper Wallet..." : "Saving signature..."}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Multi-sig result and send button */}
+                                    {approvalStatus === "confirmed" && multisigResult && (
+                                        <div className="pt-4 border-t border-green-500/30 space-y-4">
+                                            <div className="flex items-center gap-4">
+                                                <span className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                                                    Signatures
+                                                </span>
+                                                <span className={`font-mono text-sm ${multisigResult.thresholdMet ? "text-green-500" : "text-foreground"}`}>
+                                                    {multisigResult.signatureCount}
+                                                </span>
+                                                {multisigResult.thresholdMet && (
+                                                    <span className="font-mono text-[10px] text-green-500 bg-green-500/10 px-2 py-1 uppercase tracking-wider">
+                                                        Threshold Met!
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {multisigResult.thresholdMet && (
+                                                <div className="space-y-3">
+                                                    <p className="font-mono text-sm text-foreground/80">
+                                                        All required signatures have been collected. You can now send the final multi-sig deploy to complete the recovery.
+                                                    </p>
+                                                    <button
+                                                        onClick={handleSendFinalDeploy}
+                                                        disabled={isSubmitting}
+                                                        className="inline-flex items-center gap-3 border border-green-500/50 bg-green-500/10 px-6 py-3 font-mono text-xs uppercase tracking-widest text-green-500 hover:bg-green-500/20 hover:border-green-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {isSubmitting ? "Sending..." : "Send Final Deploy"}
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {!multisigResult.thresholdMet && (
+                                                <p className="font-mono text-sm text-foreground/80">
+                                                    Your approval and signature have been recorded. Waiting for more guardians to approve.
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {approvalStatus === "confirmed" && !multisigResult && (
+                                        <div className="pt-4 border-t border-green-500/30">
+                                            <p className="font-mono text-sm text-foreground/80">
+                                                Your approval has been recorded on-chain. Other guardians can now approve.
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {approvalStatus === "submitted" && (
+                                        <div className="pt-4 border-t border-accent/30">
+                                            <p className="font-mono text-sm text-foreground/80">
+                                                Waiting for contract approval confirmation...
+                                            </p>
+                                        </div>
                                     )}
                                 </div>
-
-                                {/* Guardian Responsibilities */}
-                                <div className="border border-accent/30 bg-accent/5 p-6 md:p-8">
-                                    <h3 className="font-mono text-xs uppercase tracking-widest text-accent mb-4">
-                                        Protector Responsibilities
-                                    </h3>
-                                    <ul className="space-y-3">
-                                        <li className="font-mono text-sm text-foreground/80 flex items-start gap-3">
-                                            <span className="text-accent">01</span>
-                                            <span>Verify the recovery request is from someone you know</span>
-                                        </li>
-                                        <li className="font-mono text-sm text-foreground/80 flex items-start gap-3">
-                                            <span className="text-accent">02</span>
-                                            <span>Contact the account owner through a trusted channel</span>
-                                        </li>
-                                        <li className="font-mono text-sm text-foreground/80 flex items-start gap-3">
-                                            <span className="text-accent">03</span>
-                                            <span>Confirm the new public key belongs to the rightful owner</span>
-                                        </li>
-                                        <li className="font-mono text-sm text-foreground/80 flex items-start gap-3">
-                                            <span className="text-accent">04</span>
-                                            <span>Approve only after proper verification</span>
-                                        </li>
-                                    </ul>
-                                </div>
-
-                                {/* Security Notice */}
-                                <div className="border border-border/30 p-6 md:p-8">
-                                    <h3 className="font-mono text-xs uppercase tracking-widest text-foreground mb-4">
-                                        Security Notice
-                                    </h3>
-                                    <ul className="space-y-3">
-                                        <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
-                                            <span className="text-accent">•</span>
-                                            <span>Never approve a recovery request without verification</span>
-                                        </li>
-                                        <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
-                                            <span className="text-accent">•</span>
-                                            <span>Attackers may try to impersonate the account owner</span>
-                                        </li>
-                                        <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
-                                            <span className="text-accent">•</span>
-                                            <span>Your approval is binding and cannot be revoked</span>
-                                        </li>
-                                        <li className="font-mono text-sm text-muted-foreground flex items-start gap-3">
-                                            <span className="text-accent">•</span>
-                                            <span>Each protector approval adds weight toward the threshold</span>
-                                        </li>
-                                    </ul>
-                                </div>
-                            </>
+                            </div>
                         )}
                     </div>
                 </div>
             </section>
-
-            {/* Footer */}
-            <div className="relative z-10 px-6 md:px-28 py-8 border-t border-border/30">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                        SentinelX v0.1
-                    </div>
-                    <div className="flex items-center gap-6">
-                        <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
-                            How It Works
-                        </a>
-                        <a href="/setup" className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
-                            Setup
-                        </a>
-                    </div>
-                </div>
-            </div>
         </main>
     )
 }

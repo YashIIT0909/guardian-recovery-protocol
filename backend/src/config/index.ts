@@ -36,6 +36,9 @@ export const config = {
         updateThresholds: path.resolve(
             process.env.WASM_UPDATE_THRESHOLDS_PATH || '../contracts/wasm/update_thresholds.wasm'
         ),
+        recoveryKeyRotation: path.resolve(
+            process.env.WASM_RECOVERY_KEY_ROTATION_PATH || '../contracts/wasm/recovery_key_rotation.wasm'
+        ),
     },
 
     // Deploy settings
