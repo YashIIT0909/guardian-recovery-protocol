@@ -8,6 +8,7 @@ members = [
     "update_thresholds",
     "update_associated_keys",
     "test_contract",
+    "recovery_key_rotation",
 ]
 
 [workspace.package]
