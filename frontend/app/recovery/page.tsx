@@ -14,7 +14,7 @@ import {
   isCasperWalletInstalled,
   getProvider
 } from "@/lib/casper-wallet"
-import { initiateRecovery, submitDeploy, getDeployStatus, getRecoveryById, notifyGuardiansOfRecovery } from "@/lib/api"
+import { initiateRecovery, submitDeploy, getDeployStatus, getRecoveryById, notifyGuardiansOfRecovery, buildMultisigRecoveryDeploy, saveUnsignedDeploy, queryGuardians, getRecoveriesForGuardian } from "@/lib/api"
 import { isValidCasperAddress, getAddressValidationError } from "@/lib/validation"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
@@ -32,13 +32,15 @@ export default function RecoveryPage() {
   const [guardianKey, setGuardianKey] = useState("")
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
-  const [recoveryStatus, setRecoveryStatus] = useState<"idle" | "pending" | "submitted" | "confirmed" | "failed">("idle")
+  const [recoveryStatus, setRecoveryStatus] = useState<"idle" | "pending" | "submitted" | "confirmed" | "failed" | "signing_multisig" | "saving_multisig" | "approving">("idle")
 
   // Recovery state
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [deployHash, setDeployHash] = useState<string | null>(null)
   const [recoveryId, setRecoveryId] = useState<string | null>(null)
+  const [multisigStatus, setMultisigStatus] = useState<"idle" | "building" | "signing" | "saving" | "complete" | "failed">("idle")
+  const [threshold, setThreshold] = useState<number>(2)
 
   // Initiated recoveries stored in localStorage
   interface InitiatedRecovery {
@@ -165,7 +167,7 @@ export default function RecoveryPage() {
     }
   }, [])
 
-  // Poll for deploy status - stops when status is final (confirmed or failed)
+  // Poll for deploy status - when confirmed, trigger multi-sig deploy creation
   useEffect(() => {
     // Only poll if we have a deploy hash and status is "submitted" (waiting for confirmation)
     if (!deployHash || recoveryStatus !== "submitted") return
@@ -178,35 +180,105 @@ export default function RecoveryPage() {
 
         if (result.success && result.data) {
           if (result.data.status === "success") {
-            console.log("Deploy succeeded!")
-            setRecoveryStatus("confirmed")
+            console.log("Contract deploy succeeded! Now creating multi-sig deploy...")
 
-            // Send email notifications to guardians
+            // Start multi-sig deploy creation process
+            setRecoveryStatus("signing_multisig")
+            setMultisigStatus("building")
+
             try {
-              console.log("Sending email notifications to guardians...")
-              const notifyResult = await notifyGuardiansOfRecovery({
-                targetAccount: accountAddress.trim(),
-                newPublicKey: newPublicKey.trim(),
-                initiatorPublicKey: guardianKey,
-                recoveryId: deployHash,
-              })
-              console.log("Email notification result:", notifyResult)
-              if (notifyResult.success && notifyResult.data) {
-                console.log(`Emails sent: ${notifyResult.data.emailsSent}, skipped: ${notifyResult.data.emailsSkipped}`)
+              // Get the threshold for this account
+              const guardiansResult = await queryGuardians(accountAddress.trim())
+              if (guardiansResult.success && guardiansResult.data) {
+                setThreshold(guardiansResult.data.threshold || 2)
               }
-            } catch (notifyError) {
-              console.error("Error sending guardian notifications:", notifyError)
-              // Don't fail the recovery if email notification fails
+
+              // Fetch the actual contract recovery ID
+              // After initiation, we need to query the contract for the recovery that was just created
+              console.log("Fetching contract recovery ID...")
+              let contractRecoveryId = deployHash // Fallback to deploy hash for Supabase storage
+
+              try {
+                const recoveriesResult = await getRecoveriesForGuardian(guardianKey)
+                console.log("Guardian recoveries:", recoveriesResult)
+                if (recoveriesResult.success && recoveriesResult.data?.recoveries) {
+                  // Find the recovery for this target account that was just created
+                  const matchingRecovery = recoveriesResult.data.recoveries.find(
+                    r => r.targetAccount.toLowerCase() === accountAddress.trim().toLowerCase()
+                  )
+                  if (matchingRecovery) {
+                    contractRecoveryId = matchingRecovery.recoveryId
+                    console.log("Found contract recovery ID:", contractRecoveryId)
+                  }
+                }
+              } catch (fetchError) {
+                console.log("Could not fetch recovery ID from contract, using deploy hash:", fetchError)
+              }
+
+              // Step 1: Build multi-sig recovery deploy
+              console.log("Building multi-sig recovery deploy...")
+              const buildResult = await buildMultisigRecoveryDeploy(
+                accountAddress.trim(),
+                newPublicKey.trim(),
+                guardianKey
+              )
+
+              if (!buildResult.success || !buildResult.data?.deployJson) {
+                throw new Error(buildResult.error || "Failed to build multi-sig deploy")
+              }
+
+              // Step 2: Save UNSIGNED deploy to Supabase
+              // Guardians will sign this on the approve page
+              setMultisigStatus("saving")
+              setRecoveryStatus("saving_multisig")
+              console.log("Saving unsigned multi-sig deploy to database...")
+
+              const unsignedDeployJson = buildResult.data.deployJson
+
+              const saveResult = await saveUnsignedDeploy(
+                contractRecoveryId,
+                accountAddress.trim(),
+                newPublicKey.trim(),
+                unsignedDeployJson,
+                threshold
+              )
+
+              if (!saveResult.success) {
+                throw new Error(saveResult.error || "Failed to save multi-sig deploy")
+              }
+
+              setMultisigStatus("complete")
+              console.log("Unsigned deploy saved successfully!")
+
+              // Send email notifications to guardians
+              try {
+                console.log("Sending email notifications to guardians...")
+                const notifyResult = await notifyGuardiansOfRecovery({
+                  targetAccount: accountAddress.trim(),
+                  newPublicKey: newPublicKey.trim(),
+                  initiatorPublicKey: guardianKey,
+                  recoveryId: contractRecoveryId,
+                })
+                console.log("Email notification result:", notifyResult)
+              } catch (notifyError) {
+                console.error("Error sending guardian notifications:", notifyError)
+              }
+
+              setRecoveryId(contractRecoveryId)
+              setRecoveryStatus("confirmed")
+
+            } catch (multisigError) {
+              console.error("Multi-sig deploy error:", multisigError)
+              setSubmitError(multisigError instanceof Error ? multisigError.message : "Failed to create multi-sig deploy")
+              setMultisigStatus("failed")
+              setRecoveryStatus("failed")
             }
 
-            // Polling will stop because status is no longer "submitted"
           } else if (result.data.status === "failed") {
             console.log("Deploy failed:", result.data.errorMessage)
             setSubmitError(result.data.errorMessage || "Recovery deploy failed on-chain")
             setRecoveryStatus("failed")
-            // Polling will stop because status is no longer "submitted"
           }
-          // If status is "pending", continue polling
         }
       } catch (error) {
         console.error("Error polling deploy status:", error)
@@ -219,7 +291,7 @@ export default function RecoveryPage() {
     // Continue polling every 5 seconds
     const interval = setInterval(pollStatus, 5000)
     return () => clearInterval(interval)
-  }, [deployHash, recoveryStatus, accountAddress, newPublicKey, guardianKey])
+  }, [deployHash, recoveryStatus, accountAddress, newPublicKey, guardianKey, threshold])
 
   useEffect(() => {
     if (!sectionRef.current || !formRef.current) return
@@ -405,9 +477,6 @@ export default function RecoveryPage() {
             </a>
             <a href="/setup" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               Setup
-            </a>
-            <a href="/approve" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
-              Approve
             </a>
             <a href="/execute" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               Execute
@@ -613,11 +682,15 @@ export default function RecoveryPage() {
               </div>
             )}
 
-            {/* Recovery Submitted/Confirmed Status */}
-            {(recoveryStatus === "submitted" || recoveryStatus === "confirmed") && (
+            {/* Recovery Submitted/In-Progress Status */}
+            {(recoveryStatus === "submitted" || recoveryStatus === "signing_multisig" || recoveryStatus === "saving_multisig" || recoveryStatus === "approving" || recoveryStatus === "confirmed") && (
               <div className={`border p-6 md:p-8 ${recoveryStatus === "confirmed" ? "border-green-500/30 bg-green-500/5" : "border-accent/30 bg-accent/5"}`}>
                 <h3 className={`font-mono text-xs uppercase tracking-widest mb-4 ${recoveryStatus === "confirmed" ? "text-green-500" : "text-accent"}`}>
-                  {recoveryStatus === "confirmed" ? "Recovery Confirmed ✓" : "Recovery Initiated ⏳"}
+                  {recoveryStatus === "confirmed" ? "Recovery Confirmed ✓" :
+                    recoveryStatus === "submitted" ? "Recovery Initiated ⏳" :
+                      recoveryStatus === "signing_multisig" ? "Sign Multi-Sig Deploy 🔐" :
+                        recoveryStatus === "saving_multisig" ? "Saving Multi-Sig Deploy 💾" :
+                          recoveryStatus === "approving" ? "Auto-Approving Recovery ✍️" : "Processing..."}
                 </h3>
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 gap-1">
@@ -646,13 +719,67 @@ export default function RecoveryPage() {
                       </span>
                     </div>
                   )}
-                  <div className="pt-4 border-t border-accent/30">
-                    <p className="font-mono text-sm text-foreground/80">
-                      {recoveryStatus === "confirmed"
-                        ? "Recovery proposal is now on-chain. Protectors can start approving."
-                        : "Waiting for network confirmation..."}
-                    </p>
-                    {recoveryStatus === "confirmed" && (
+
+                  {/* Multi-sig Progress Steps */}
+                  {(recoveryStatus === "signing_multisig" || recoveryStatus === "saving_multisig" || recoveryStatus === "approving") && (
+                    <div className="pt-4 border-t border-accent/30">
+                      <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-3">
+                        Multi-Sig Deploy Progress
+                      </p>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${multisigStatus === "complete" || multisigStatus === "saving" || multisigStatus === "signing" ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+                          <span className="font-mono text-xs text-foreground/70">Build multi-sig deploy</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${multisigStatus === "signing" ? "bg-accent animate-pulse" : multisigStatus === "saving" || multisigStatus === "complete" ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+                          <span className="font-mono text-xs text-foreground/70">Sign multi-sig deploy (Casper Wallet)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${multisigStatus === "saving" ? "bg-accent animate-pulse" : multisigStatus === "complete" ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+                          <span className="font-mono text-xs text-foreground/70">Save to database</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${recoveryStatus === "approving" ? "bg-accent animate-pulse" : multisigStatus === "complete" ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+                          <span className="font-mono text-xs text-foreground/70">Auto-approve (as initiator)</span>
+                        </div>
+                      </div>
+                      <p className="mt-4 font-mono text-xs text-muted-foreground">
+                        {multisigStatus === "signing" ? "Please sign the multi-sig deploy in Casper Wallet..." :
+                          multisigStatus === "saving" ? "Saving signed deploy to database..." :
+                            recoveryStatus === "approving" ? "Please sign the approval transaction..." :
+                              "Processing..."}
+                      </p>
+                    </div>
+                  )}
+
+                  {recoveryStatus === "submitted" && (
+                    <div className="pt-4 border-t border-accent/30">
+                      <p className="font-mono text-sm text-foreground/80">
+                        Waiting for contract transaction confirmation...
+                      </p>
+                    </div>
+                  )}
+
+                  {recoveryStatus === "confirmed" && (
+                    <div className="pt-4 border-t border-accent/30">
+                      <p className="font-mono text-sm text-foreground/80">
+                        Recovery proposal is now on-chain with multi-sig deploy ready. Protectors can start approving.
+                      </p>
+                      {recoveryId && (
+                        <div className="mt-3 p-3 bg-accent/10 rounded">
+                          <p className="font-mono text-xs text-muted-foreground mb-1">Recovery ID (share with guardians):</p>
+                          <div className="flex items-center gap-2">
+                            <code className="font-mono text-sm text-accent break-all">{recoveryId}</code>
+                            <button
+                              onClick={() => navigator.clipboard.writeText(recoveryId)}
+                              className="font-mono text-[10px] text-accent hover:text-accent/80 transition-colors shrink-0"
+                            >
+                              COPY
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       <div className="mt-4">
                         <p className="font-mono text-xs text-muted-foreground mb-2">
                           Share this page with your protectors so they can approve:
@@ -664,8 +791,8 @@ export default function RecoveryPage() {
                           Go to Approval Page →
                         </a>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

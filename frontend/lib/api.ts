@@ -516,6 +516,131 @@ export const notifyGuardiansOfRecovery = async (params: {
     }
 };
 
+// ==================== MULTI-SIG DEPLOY ENDPOINTS ====================
+
+export interface MultisigDeployData {
+    deployJson: any;
+    signatureCount: number;
+    threshold: number;
+    status: string;
+    isUnsigned?: boolean;  // True if returning original unsigned deploy
+}
+
+export interface MultisigDeployStatus {
+    recoveryId: string;
+    status: 'pending' | 'ready' | 'sent' | 'confirmed' | 'failed';
+    signatureCount: number;
+    threshold: number;
+    thresholdMet: boolean;
+    deployHash: string | null;
+    onChainStatus?: string;
+}
+
+/**
+ * Build a multi-sig recovery deploy for key management operations
+ */
+export const buildMultisigRecoveryDeploy = async (
+    targetAccount: string,
+    newPublicKey: string,
+    initiatorPublicKey: string
+): Promise<ApiResponse<{ deployJson: any; deployHash: string }>> => {
+    try {
+        const response = await apiClient.post('/multisig/build', {
+            targetAccount,
+            newPublicKey,
+            initiatorPublicKey,
+        });
+        return response.data;
+    } catch (error) {
+        return handleApiError(error);
+    }
+};
+
+/**
+ * Save an UNSIGNED deploy to the backend (Supabase)
+ * Called by the initiator after building the deploy
+ */
+export const saveUnsignedDeploy = async (
+    recoveryId: string,
+    targetAccount: string,
+    newPublicKey: string,
+    deployJson: any,
+    threshold: number
+): Promise<ApiResponse<{ message: string }>> => {
+    try {
+        const response = await apiClient.post('/multisig/save', {
+            recoveryId,
+            targetAccount,
+            newPublicKey,
+            deployJson,
+            threshold,
+        });
+        return response.data;
+    } catch (error) {
+        return handleApiError(error);
+    }
+};
+
+/**
+ * Add a signature to an existing multi-sig deploy
+ */
+export const addSignatureToDeploy = async (
+    recoveryId: string,
+    signedDeployJson: any
+): Promise<ApiResponse<{ signatureCount: number; thresholdMet: boolean }>> => {
+    try {
+        const response = await apiClient.post('/multisig/sign', {
+            recoveryId,
+            signedDeployJson,
+        });
+        return response.data;
+    } catch (error) {
+        return handleApiError(error);
+    }
+};
+
+/**
+ * Get the multi-sig deploy for a recovery (latest signed version)
+ */
+export const getMultisigDeploy = async (
+    recoveryId: string
+): Promise<ApiResponse<MultisigDeployData>> => {
+    try {
+        const response = await apiClient.get(`/multisig/${recoveryId}`);
+        return response.data;
+    } catch (error) {
+        return handleApiError(error);
+    }
+};
+
+/**
+ * Send the fully signed deploy to the network
+ */
+export const sendMultisigDeploy = async (
+    recoveryId: string
+): Promise<ApiResponse<{ deployHash: string; message: string }>> => {
+    try {
+        const response = await apiClient.post('/multisig/send', { recoveryId });
+        return response.data;
+    } catch (error) {
+        return handleApiError(error);
+    }
+};
+
+/**
+ * Get multi-sig deploy status
+ */
+export const getMultisigDeployStatus = async (
+    recoveryId: string
+): Promise<ApiResponse<MultisigDeployStatus>> => {
+    try {
+        const response = await apiClient.get(`/multisig/status/${recoveryId}`);
+        return response.data;
+    } catch (error) {
+        return handleApiError(error);
+    }
+};
+
 // ==================== ERROR HANDLING ====================
 
 function handleApiError<T>(error: unknown): ApiResponse<T> {
