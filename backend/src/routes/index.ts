@@ -3,6 +3,7 @@ import recoveryRoutes from './recovery.routes';
 import sessionRoutes from './session.routes';
 import accountRoutes from './account.routes';
 import userRoutes from './user.routes';
+import multisigRoutes from './multisig-deploy.routes';
 
 const router = Router();
 
@@ -11,6 +12,8 @@ router.use('/recovery', recoveryRoutes);
 router.use('/session', sessionRoutes);
 router.use('/account', accountRoutes);
 router.use('/user', userRoutes);
+router.use('/multisig', multisigRoutes);
+
 
 // Health check
 router.get('/health', (req, res) => {

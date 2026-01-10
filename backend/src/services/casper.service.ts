@@ -332,18 +332,33 @@ export class CasperService {
     }> {
         try {
             console.log('Submitting deploy to RPC:', config.casper.nodeUrl);
-            console.log('Deploy JSON structure keys:', Object.keys(deployJson));
+
+            // Handle string input
+            let deployObj = deployJson;
+            if (typeof deployJson === 'string') {
+                try {
+                    deployObj = JSON.parse(deployJson);
+                } catch (e) {
+                    return {
+                        deployHash: '',
+                        success: false,
+                        message: 'Invalid deploy JSON string',
+                    };
+                }
+            }
+
+            console.log('Deploy JSON structure keys:', Object.keys(deployObj));
 
             // The deployJson should be {deploy: {...}} format
             // Casper RPC expects params: {deploy: {...}}
             // Make sure we're not double-wrapping
-            let params = deployJson;
-            if (deployJson.deploy && !deployJson.deploy.deploy) {
+            let params = deployObj;
+            if (deployObj.deploy && !deployObj.deploy.deploy) {
                 // Already in correct format: {deploy: {...}}
-                params = deployJson;
-            } else if (!deployJson.deploy) {
+                params = deployObj;
+            } else if (!deployObj.deploy) {
                 // Wrap if needed: deploy -> {deploy: deploy}
-                params = { deploy: deployJson };
+                params = { deploy: deployObj };
             }
 
             console.log('RPC params keys:', Object.keys(params));
@@ -372,7 +387,7 @@ export class CasperService {
                 return {
                     deployHash: '',
                     success: false,
-                    message: `HTTP error ${response.status}: ${response.statusText}.${errorText}`,
+                    message: `HTTP error ${response.status}: ${response.statusText}. ${errorText}`,
                 };
             }
 
@@ -414,7 +429,7 @@ export class CasperService {
             return {
                 deployHash: '',
                 success: false,
-                message: `Error submitting deploy: ${error}`,
+                message: `Error submitting deploy: ${error instanceof Error ? error.message : String(error)}`,
             };
         }
     }
