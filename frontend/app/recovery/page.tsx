@@ -14,7 +14,7 @@ import {
   isCasperWalletInstalled,
   getProvider
 } from "@/lib/casper-wallet"
-import { initiateRecovery, submitDeploy, getDeployStatus, getRecoveryById, notifyGuardiansOfRecovery, buildMultisigRecoveryDeploy, saveUnsignedDeploy, queryGuardians, getRecoveriesForGuardian } from "@/lib/api"
+import { initiateRecovery, submitDeploy, getDeployStatus, getRecoveryById, notifyGuardiansOfRecovery, buildMultisigRecoveryDeploy, saveUnsignedDeploy, queryGuardians, getRecoveriesForGuardian, getActiveRecoveryFromContract } from "@/lib/api"
 import { isValidCasperAddress, getAddressValidationError } from "@/lib/validation"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
@@ -195,24 +195,47 @@ export default function RecoveryPage() {
 
               // Fetch the actual contract recovery ID
               // After initiation, we need to query the contract for the recovery that was just created
-              console.log("Fetching contract recovery ID...")
-              let contractRecoveryId = deployHash // Fallback to deploy hash for Supabase storage
+              // The contract stores the active recovery ID at key "a{:?}" where {:?} is the AccountHash Debug format
+              console.log("Fetching contract recovery ID from contract dictionary...")
+              let contractRecoveryId: string | null = null
 
               try {
-                const recoveriesResult = await getRecoveriesForGuardian(guardianKey)
-                console.log("Guardian recoveries:", recoveriesResult)
-                if (recoveriesResult.success && recoveriesResult.data?.recoveries) {
-                  // Find the recovery for this target account that was just created
-                  const matchingRecovery = recoveriesResult.data.recoveries.find(
-                    r => r.targetAccount.toLowerCase() === accountAddress.trim().toLowerCase()
-                  )
-                  if (matchingRecovery) {
-                    contractRecoveryId = matchingRecovery.recoveryId
-                    console.log("Found contract recovery ID:", contractRecoveryId)
+                // First, try the direct contract dictionary query
+                const activeRecoveryResult = await getActiveRecoveryFromContract(accountAddress.trim())
+                console.log("Active recovery from contract:", activeRecoveryResult)
+                
+                if (activeRecoveryResult.success && activeRecoveryResult.data?.recoveryId) {
+                  contractRecoveryId = activeRecoveryResult.data.recoveryId
+                  console.log("Found contract recovery ID from contract dictionary:", contractRecoveryId)
+                }
+                
+                // Fallback to guardian recoveries if direct query fails
+                if (!contractRecoveryId) {
+                  const recoveriesResult = await getRecoveriesForGuardian(guardianKey)
+                  console.log("Guardian recoveries (fallback):", recoveriesResult)
+                  if (recoveriesResult.success && recoveriesResult.data?.recoveries) {
+                    // Find the recovery for this target account that was just created
+                    // Convert the target account public key to account hash format for comparison
+                    const targetPubKey = CLPublicKey.fromHex(accountAddress.trim())
+                    const targetAccountHash = Buffer.from(targetPubKey.toAccountHash()).toString('hex')
+                    const targetAccountHashFormatted = `account-hash-${targetAccountHash}`
+                    
+                    const matchingRecovery = recoveriesResult.data.recoveries.find(
+                      r => r.targetAccount.toLowerCase() === targetAccountHashFormatted.toLowerCase()
+                    )
+                    if (matchingRecovery) {
+                      contractRecoveryId = matchingRecovery.recoveryId
+                      console.log("Found contract recovery ID from guardian recoveries:", contractRecoveryId)
+                    }
                   }
                 }
               } catch (fetchError) {
-                console.log("Could not fetch recovery ID from contract, using deploy hash:", fetchError)
+                console.error("Error fetching recovery ID from contract:", fetchError)
+              }
+
+              // If we still don't have a recovery ID, throw an error - do not use deploy hash as fallback
+              if (!contractRecoveryId) {
+                throw new Error("Failed to retrieve recovery ID from contract. The recovery may not have been created properly.")
               }
 
               // Step 1: Build multi-sig recovery deploy
@@ -247,8 +270,11 @@ export default function RecoveryPage() {
                 throw new Error(saveResult.error || "Failed to save multi-sig deploy")
               }
 
+              // Use the backend-verified recovery ID (fetched from smart contract)
+              const verifiedRecoveryId = saveResult.data?.recoveryId || contractRecoveryId
+
               setMultisigStatus("complete")
-              console.log("Unsigned deploy saved successfully!")
+              console.log("Unsigned deploy saved successfully! Recovery ID:", verifiedRecoveryId)
 
               // Send email notifications to guardians
               try {
@@ -257,14 +283,14 @@ export default function RecoveryPage() {
                   targetAccount: accountAddress.trim(),
                   newPublicKey: newPublicKey.trim(),
                   initiatorPublicKey: guardianKey,
-                  recoveryId: contractRecoveryId,
+                  recoveryId: verifiedRecoveryId,
                 })
                 console.log("Email notification result:", notifyResult)
               } catch (notifyError) {
                 console.error("Error sending guardian notifications:", notifyError)
               }
 
-              setRecoveryId(contractRecoveryId)
+              setRecoveryId(verifiedRecoveryId)
               setRecoveryStatus("confirmed")
 
             } catch (multisigError) {
@@ -478,8 +504,8 @@ export default function RecoveryPage() {
             <a href="/setup" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               Setup
             </a>
-            <a href="/execute" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
-              Execute
+            <a href="/recovery" className="font-mono text-xs uppercase tracking-[0.3em] text-accent">
+              Recovery
             </a>
             <a href="/dashboard" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               Dashboard

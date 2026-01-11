@@ -255,8 +255,6 @@ export default function SetupPage() {
             setGuardians(newGuardians);
             setRegisteredGuardians(status.guardians);
             setSaveSuccess(true);
-
-            alert('Existing guardian configuration loaded!');
           }
         } catch (error) {
           console.error('Error checking account status:', error);
@@ -556,11 +554,11 @@ export default function SetupPage() {
             <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               How It Works
             </a>
+            <a href="/setup" className="font-mono text-xs uppercase tracking-[0.3em] text-accent">
+              Setup
+            </a>
             <a href="/recovery" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               Recovery
-            </a>
-            <a href="/execute" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
-              Execute
             </a>
             <a href="/dashboard" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
               Dashboard

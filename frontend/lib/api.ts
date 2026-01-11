@@ -222,6 +222,21 @@ export const getActiveRecovery = async (
 };
 
 /**
+ * Get active recovery ID from contract dictionary (NO TRANSACTION - direct state query)
+ * This queries the contract's storage directly for the active recovery ID
+ */
+export const getActiveRecoveryFromContract = async (
+    targetAccountPublicKey: string
+): Promise<ApiResponse<{ hasActiveRecovery: boolean; recoveryId: string | null }>> => {
+    try {
+        const response = await apiClient.get(`/recovery/active-from-contract/${targetAccountPublicKey}`);
+        return response.data;
+    } catch (error) {
+        return handleApiError(error);
+    }
+};
+
+/**
  * Get recovery details by ID from contract (NO TRANSACTION - direct state query)
  */
 export const getRecoveryById = async (
@@ -559,6 +574,7 @@ export const buildMultisigRecoveryDeploy = async (
 /**
  * Save an UNSIGNED deploy to the backend (Supabase)
  * Called by the initiator after building the deploy
+ * The backend fetches and validates the recovery ID from the smart contract
  */
 export const saveUnsignedDeploy = async (
     recoveryId: string,
@@ -566,7 +582,7 @@ export const saveUnsignedDeploy = async (
     newPublicKey: string,
     deployJson: any,
     threshold: number
-): Promise<ApiResponse<{ message: string }>> => {
+): Promise<ApiResponse<{ message: string; recoveryId: string }>> => {
     try {
         const response = await apiClient.post('/multisig/save', {
             recoveryId,

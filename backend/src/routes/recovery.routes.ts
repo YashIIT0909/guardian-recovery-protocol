@@ -425,6 +425,32 @@ router.get('/status/:recoveryId', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /recovery/active-from-contract/:publicKey
+ * Get active recovery ID from contract dictionary (off-chain query)
+ * This queries the contract's "a{:?}" key directly
+ */
+router.get('/active-from-contract/:publicKey', async (req: Request, res: Response) => {
+    try {
+        const { publicKey } = req.params;
+
+        const recoveryId = await casperService.getActiveRecoveryIdFromContract(publicKey);
+
+        res.json({
+            success: true,
+            data: {
+                hasActiveRecovery: recoveryId !== null,
+                recoveryId: recoveryId,
+            },
+        } as ApiResponse);
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: `Failed to get active recovery from contract: ${error}`,
+        } as ApiResponse);
+    }
+});
+
+/**
  * GET /recovery/active/:publicKey
  * Get active recovery for an account (off-chain query)
  */

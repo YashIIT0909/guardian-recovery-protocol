@@ -111,20 +111,15 @@ npm run dev
 ## STEP 4: Execute Recovery (Key Rotation)
 
 **Who:** Bob or Carol (guardian)
-**Page:** http://localhost:3000/execute
+**Page:** http://localhost:3000/dashboard
+
+Once all guardians have approved and the waiting period has passed:
 
 1. Connect as a guardian (Bob or Carol)
-2. **Step 1 - Add New Key:**
-   - Enter Alice's new public key
-   - Click "Execute Step"
-   - Sign transaction
-3. **Step 2 - Remove Old Key:**
-   - Enter Alice's old public key
-   - Click "Execute Step"
-   - Sign transaction
-4. **Step 3 - Reset Thresholds:**
-   - Click "Execute Step"
-   - Sign transaction
+2. Go to the Dashboard
+3. Find the approved recovery in the "Ready to Execute" section
+4. Click "Send Final Deploy" to execute the multi-sig transaction
+5. Sign the transaction
 
 **Result:** Alice's account is recovered! 🎉
 
@@ -148,9 +143,7 @@ Alice can now import her new private key into Casper Wallet and access her accou
 | Admin | /admin | Deploy contract (one-time) |
 | Setup | /setup | Register guardians |
 | Recovery | /recovery | Initiate recovery |
-| Approve | /approve | Guardian approval |
-| Execute | /execute | Key rotation |
-| Dashboard | /dashboard | Track progress |
+| Dashboard | /dashboard | Guardian approval, tracking & execution |
 
 ## Troubleshooting
 

@@ -45,20 +45,46 @@ router.post('/build', async (req: Request, res: Response) => {
 /**
  * POST /multisig/save
  * Save an UNSIGNED deploy to Supabase (called by initiator)
+ * The backend verifies the recovery ID from the smart contract
  */
 router.post('/save', async (req: Request, res: Response) => {
     try {
         const { recoveryId, targetAccount, newPublicKey, deployJson, threshold } = req.body;
 
-        if (!recoveryId || !targetAccount || !newPublicKey || !deployJson || !threshold) {
+        if (!targetAccount || !newPublicKey || !deployJson || !threshold) {
             return res.status(400).json({
                 success: false,
-                error: 'Missing required fields: recoveryId, targetAccount, newPublicKey, deployJson, threshold',
+                error: 'Missing required fields: targetAccount, newPublicKey, deployJson, threshold',
+            } as ApiResponse);
+        }
+
+        // Fetch the recovery ID from the smart contract to ensure consistency
+        console.log('Fetching recovery ID from contract for target account:', targetAccount);
+        const contractRecoveryId = await casperService.getActiveRecoveryIdFromContract(targetAccount);
+        
+        // Use contract recovery ID if available, otherwise fall back to provided ID
+        let finalRecoveryId: string;
+        if (contractRecoveryId) {
+            finalRecoveryId = contractRecoveryId;
+            console.log('Using contract recovery ID:', finalRecoveryId);
+            
+            // Log if there's a mismatch between provided and contract ID
+            if (recoveryId && recoveryId !== contractRecoveryId) {
+                console.warn(`Recovery ID mismatch: provided=${recoveryId}, contract=${contractRecoveryId}. Using contract value.`);
+            }
+        } else if (recoveryId) {
+            // Fallback to provided ID if contract query fails
+            console.warn('Could not fetch recovery ID from contract, using provided ID:', recoveryId);
+            finalRecoveryId = recoveryId;
+        } else {
+            return res.status(400).json({
+                success: false,
+                error: 'No active recovery found in contract and no recoveryId provided',
             } as ApiResponse);
         }
 
         const result = await multisigService.saveUnsignedDeploy(
-            recoveryId,
+            finalRecoveryId,
             targetAccount,
             newPublicKey,
             deployJson,
@@ -74,7 +100,10 @@ router.post('/save', async (req: Request, res: Response) => {
 
         res.json({
             success: true,
-            data: { message: 'Unsigned deploy saved successfully' },
+            data: { 
+                message: 'Unsigned deploy saved successfully',
+                recoveryId: finalRecoveryId,  // Return the actual recovery ID used
+            },
         } as ApiResponse);
     } catch (error) {
         console.error('Error saving unsigned deploy:', error);

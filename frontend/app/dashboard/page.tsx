@@ -677,10 +677,7 @@ export default function DashboardPage() {
                         <a href="/recovery" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
                             Recovery
                         </a>
-                        <a href="/execute" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
-                            Execute
-                        </a>
-                        <a href="/dashboard" className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-colors">
+                        <a href="/dashboard" className="font-mono text-xs uppercase tracking-[0.3em] text-accent">
                             Dashboard
                         </a>
                     </div>
@@ -1009,36 +1006,58 @@ export default function DashboardPage() {
                                             Pending Recoveries ({pendingRecoveries.length})
                                         </h4>
                                         <div className="space-y-3">
-                                            {pendingRecoveries.map((recovery) => (
-                                                <div
-                                                    key={recovery.recoveryId}
-                                                    className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 border border-border/30 bg-background/30 hover:border-accent/30 transition-colors"
-                                                >
-                                                    <div className="space-y-2 flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-mono text-xs text-accent">ID: {recovery.recoveryId}</span>
-                                                            <span className="font-mono text-[10px] text-muted-foreground bg-accent/10 px-2 py-0.5">
-                                                                {recovery.approvalCount}/{recovery.threshold} approvals
-                                                            </span>
-                                                        </div>
-                                                        <div className="font-mono text-[10px] text-muted-foreground truncate">
-                                                            Target: {recovery.targetAccount}
-                                                        </div>
-                                                        {recovery.newKey && (
-                                                            <div className="font-mono text-[10px] text-muted-foreground truncate">
-                                                                New Key: {recovery.newKey}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <button
-                                                        onClick={() => handleApproveRecovery(recovery)}
-                                                        disabled={isSubmitting}
-                                                        className="shrink-0 inline-flex items-center gap-2 border border-green-500/30 bg-green-500/5 px-4 py-2 font-mono text-xs uppercase tracking-widest text-green-500 hover:bg-green-500/10 hover:border-green-500/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            {pendingRecoveries.map((recovery) => {
+                                                const progressPercent = (recovery.approvalCount / recovery.threshold) * 100
+                                                return (
+                                                    <div
+                                                        key={recovery.recoveryId}
+                                                        className="p-4 border border-border/30 bg-background/30 hover:border-accent/30 transition-colors"
                                                     >
-                                                        Approve
-                                                    </button>
-                                                </div>
-                                            ))}
+                                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                            <div className="space-y-2 flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-mono text-xs text-accent">ID: {recovery.recoveryId}</span>
+                                                                    <span className="font-mono text-[10px] text-muted-foreground bg-accent/10 px-2 py-0.5">
+                                                                        {recovery.approvalCount}/{recovery.threshold} approvals
+                                                                    </span>
+                                                                </div>
+                                                                <div className="font-mono text-[10px] text-muted-foreground truncate">
+                                                                    Target: {recovery.targetAccount}
+                                                                </div>
+                                                                {recovery.newKey && (
+                                                                    <div className="font-mono text-[10px] text-muted-foreground truncate">
+                                                                        New Key: {recovery.newKey}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                onClick={() => handleApproveRecovery(recovery)}
+                                                                disabled={isSubmitting}
+                                                                className="shrink-0 inline-flex items-center gap-2 border border-green-500/30 bg-green-500/5 px-4 py-2 font-mono text-xs uppercase tracking-widest text-green-500 hover:bg-green-500/10 hover:border-green-500/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                Approve
+                                                            </button>
+                                                        </div>
+                                                        {/* Progress Bar */}
+                                                        <div className="mt-4">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                                                                    Approval Progress
+                                                                </span>
+                                                                <span className="font-mono text-[10px] text-accent">
+                                                                    {Math.round(progressPercent)}%
+                                                                </span>
+                                                            </div>
+                                                            <div className="h-2 bg-border/30 overflow-hidden">
+                                                                <div
+                                                                    className="h-full bg-accent transition-all duration-500"
+                                                                    style={{ width: `${progressPercent}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
                                         </div>
                                     </div>
                                 ) : (
@@ -1056,37 +1075,65 @@ export default function DashboardPage() {
                                             Already Approved by You ({approvedRecoveries.length})
                                         </h4>
                                         <div className="space-y-3">
-                                            {approvedRecoveries.map((recovery) => (
-                                                <div
-                                                    key={recovery.recoveryId}
-                                                    className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 border border-green-500/20 bg-green-500/5"
-                                                >
-                                                    <div className="space-y-2 flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-mono text-xs text-green-500">ID: {recovery.recoveryId}</span>
-                                                            <span className="font-mono text-[10px] text-green-500 bg-green-500/10 px-2 py-0.5">
-                                                                {recovery.approvalCount}/{recovery.threshold} approvals
-                                                            </span>
-                                                            {recovery.isApproved && (
-                                                                <span className="font-mono text-[10px] text-green-500 bg-green-500/20 px-2 py-0.5">
-                                                                    Ready to Execute
+                                            {approvedRecoveries.map((recovery) => {
+                                                const progressPercent = (recovery.approvalCount / recovery.threshold) * 100
+                                                const isComplete = recovery.approvalCount >= recovery.threshold
+                                                return (
+                                                    <div
+                                                        key={recovery.recoveryId}
+                                                        className="p-4 border border-green-500/20 bg-green-500/5"
+                                                    >
+                                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                            <div className="space-y-2 flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-mono text-xs text-green-500">ID: {recovery.recoveryId}</span>
+                                                                    <span className="font-mono text-[10px] text-green-500 bg-green-500/10 px-2 py-0.5">
+                                                                        {recovery.approvalCount}/{recovery.threshold} approvals
+                                                                    </span>
+                                                                    {recovery.isApproved && (
+                                                                        <span className="font-mono text-[10px] text-green-500 bg-green-500/20 px-2 py-0.5">
+                                                                            Ready to Execute
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="font-mono text-[10px] text-muted-foreground truncate">
+                                                                    Target: {recovery.targetAccount}
+                                                                </div>
+                                                                {recovery.newKey && (
+                                                                    <div className="font-mono text-[10px] text-muted-foreground truncate">
+                                                                        New Key: {recovery.newKey}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="shrink-0 inline-flex items-center gap-2 px-4 py-2 font-mono text-xs uppercase tracking-widest text-green-500">
+                                                                ✓ Approved
+                                                            </div>
+                                                        </div>
+                                                        {/* Progress Bar */}
+                                                        <div className="mt-4">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                                                                    Approval Progress
                                                                 </span>
+                                                                <span className={`font-mono text-[10px] ${isComplete ? "text-green-500" : "text-accent"}`}>
+                                                                    {Math.round(progressPercent)}%
+                                                                </span>
+                                                            </div>
+                                                            <div className="h-2 bg-border/30 overflow-hidden">
+                                                                <div
+                                                                    className={`h-full transition-all duration-500 ${isComplete ? "bg-green-500" : "bg-accent"}`}
+                                                                    style={{ width: `${progressPercent}%` }}
+                                                                />
+                                                            </div>
+                                                            {isComplete && (
+                                                                <p className="font-mono text-[10px] text-green-500 mt-2">
+                                                                    ✓ All guardians have approved. Recovery can be executed.
+                                                                </p>
                                                             )}
                                                         </div>
-                                                        <div className="font-mono text-[10px] text-muted-foreground truncate">
-                                                            Target: {recovery.targetAccount}
-                                                        </div>
-                                                        {recovery.newKey && (
-                                                            <div className="font-mono text-[10px] text-muted-foreground truncate">
-                                                                New Key: {recovery.newKey}
-                                                            </div>
-                                                        )}
                                                     </div>
-                                                    <div className="shrink-0 inline-flex items-center gap-2 px-4 py-2 font-mono text-xs uppercase tracking-widest text-green-500">
-                                                        ✓ Approved
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                )
+                                            })}
                                         </div>
                                     </div>
                                 )}

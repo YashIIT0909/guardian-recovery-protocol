@@ -574,6 +574,76 @@ export class CasperService {
     }
 
     /**
+     * Get active recovery ID for an account by querying the contract dictionary
+     * The contract stores active recovery IDs at key "a{:?}" where {:?} is AccountHash Debug format
+     */
+    async getActiveRecoveryIdFromContract(targetAccountHex: string): Promise<string | null> {
+        try {
+            const contractHash = config.contract.recoveryRegistryHash;
+            if (!contractHash) {
+                console.error('Contract hash not configured');
+                return null;
+            }
+
+            const publicKey = CLPublicKey.fromHex(targetAccountHex);
+            const accountHash = publicKey.toAccountHash();
+            const accountHashHex = Buffer.from(accountHash).toString('hex');
+            const debugFormat = `AccountHash(${accountHashHex})`;
+
+            console.log('\n=== Querying Active Recovery ID ===');
+            console.log('Target Account:', targetAccountHex);
+            console.log('Account Hash Debug Format:', debugFormat);
+
+            // The contract stores active recovery ID at "a{:?}" key
+            const activeKey = `a${debugFormat}`;
+            const result = await this.queryContractDictionary(contractHash, 'd', activeKey);
+
+            if (result?.stored_value?.CLValue?.data !== undefined) {
+                const data = result.stored_value.CLValue.data;
+                // Handle BigNumber/U256 values
+                let recoveryId: string;
+                if (typeof data === 'object' && data !== null) {
+                    if (data._isBigNumber || typeof data.toString === 'function') {
+                        recoveryId = data.toString();
+                    } else {
+                        recoveryId = String(data);
+                    }
+                } else {
+                    recoveryId = String(data);
+                }
+                console.log('Active Recovery ID found:', recoveryId);
+                console.log('========================================\n');
+                return recoveryId;
+            }
+
+            // Also check for CLValue directly (different SDK response format)
+            if (result?.CLValue?.data !== undefined) {
+                const data = result.CLValue.data;
+                let recoveryId: string;
+                if (typeof data === 'object' && data !== null) {
+                    if (data._isBigNumber || typeof data.toString === 'function') {
+                        recoveryId = data.toString();
+                    } else {
+                        recoveryId = String(data);
+                    }
+                } else {
+                    recoveryId = String(data);
+                }
+                console.log('Active Recovery ID found (CLValue format):', recoveryId);
+                console.log('========================================\n');
+                return recoveryId;
+            }
+
+            console.log('No active recovery found for this account');
+            console.log('========================================\n');
+            return null;
+        } catch (error) {
+            console.error(`Error getting active recovery ID from contract: ${error}`);
+            return null;
+        }
+    }
+
+    /**
      * Get active recovery ID for an account
      */
     async getActiveRecovery(publicKeyHex: string): Promise<string | null> {
