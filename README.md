@@ -392,40 +392,50 @@ Alice Can Now:
   ✓ Access all her cryptocurrency
 ```
 
+## Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| **Smart Contracts** | Rust + Casper SDK |
+| **Backend** | Node.js + TypeScript + Express |
+| **Frontend** | Next.js 15 + React 19 + TypeScript |
+| **Database** | Supabase (PostgreSQL) |
+| **Styling** | TailwindCSS 4 + shadcn/ui |
+| **Blockchain SDK** | casper-js-sdk |
+| **Email** | Nodemailer (SMTP) |
+
 ## Protocol Components
 
-### Smart Contract (Rust/Casper)
-- Guardian registry mapping (guardians per account)
-- Recovery request storage (bound to accounts)
-- Signature verification (cryptographic validation)
-- Approval tracking (threshold enforcement)
-- Time-lock enforcement (30-day delay)
-- Replay attack prevention (nonce & timestamp)
+### Smart Contracts (`/contracts`)
+Rust-based Casper contracts and session WASMs:
+- **recovery_registry** - Main coordination contract for guardian management
+- **add_associated_key.wasm** - Add new key to account
+- **remove_associated_key.wasm** - Remove old/lost key
+- **update_thresholds.wasm** - Modify action thresholds
+- **update_associated_keys.wasm** - Batch key updates
+- **recovery_key_rotation.wasm** - Complete key rotation flow
 
-### Backend Service (Python/Node.js)
-- Account existence validation
-- Guardian list retrieval (account-specific)
-- Email notification system
-- Recovery request management
-- Approval tracking database
-- Signature collection for execution
-- Automated key rotation deployment
+### Backend Service (`/backend`)
+Node.js/TypeScript Express API:
+- Casper Network integration via casper-js-sdk
+- Multi-signature deploy management
+- Guardian email notifications
+- Recovery request tracking
+- Supabase database integration
+- Session WASM deploy building
 
-### Frontend dApp (React/Web3)
-- Recovery initiation form
+### Frontend dApp (`/frontend`)
+Next.js 15 React application:
+- Modern UI with TailwindCSS + Radix UI
 - Casper Wallet integration
-- Guardian approval interface
-- Recovery status dashboard
-- Timeline visualization
-- Cancellation interface
+- Guardian setup wizard
+- Recovery initiation flow
+- Guardian dashboard with approval tracking
+- Admin panel for contract deployment
 
-### Database (PostgreSQL)
-- Account registry
-- Guardian mappings (per account)
-- Recovery requests (bound to accounts)
-- Approval records (linked to recovery)
-- Audit log (complete history)
-- Nonce tracking (replay prevention)
+### Database (Supabase)
+- **users** - User profiles and public keys
+- **recovery_deploys** - Multi-sig deploy tracking with signature chain
 
 ## Getting Started
 
@@ -449,38 +459,52 @@ Alice Can Now:
 
 ## Installation & Development
 
+### Prerequisites
+- Node.js 18+
+- Rust (for contract compilation)
+- Casper Wallet browser extension
+- Supabase account (for database)
+
 ### Clone Repository
 ```bash
-git clone https://github.com/guardian-labs/sentinelx.git
-cd sentinelx
+git clone https://github.com/your-org/guardian-recovery-protocol.git
+cd guardian-recovery-protocol
 ```
 
 ### Smart Contracts (Rust)
 ```bash
 cd contracts
-cargo build --release
-cargo test
+make prepare        # Install WASM target
+make build          # Build all contracts
+make copy-wasm      # Copy WASMs to output folder
 ```
 
 ### Backend Service
 ```bash
 cd backend
-pip install -r requirements.txt
-python app.py
+npm install
+cp .env.example .env     # Configure environment variables
+npm run dev              # Development server on :3001
 ```
 
 ### Frontend dApp
 ```bash
 cd frontend
 npm install
-npm start
+npm run dev              # Development server on :3000
 ```
 
-### Run Tests
+### Production Build
 ```bash
-cargo test                    # Smart contract tests
-pytest                        # Backend tests
-npm test                      # Frontend tests
+# Backend
+cd backend
+npm run build
+npm start
+
+# Frontend
+cd frontend
+npm run build
+npm start
 ```
 
 ## Security Considerations
